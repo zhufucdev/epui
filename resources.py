@@ -1,5 +1,6 @@
-from PIL import Image, ImageFilter
 import os
+
+from PIL import Image
 
 cached = {}
 
