@@ -15,10 +15,12 @@ def main():
                  text="What the fuck is going on?",
                  font_size=50,
                  line_align=ViewAlignmentHorizontal.CENTER,
+                 align_horizontal=ViewAlignmentHorizontal.CENTER,
+                 align_vertical=ViewAlignmentVertical.CENTER,
                  prefer=ViewMeasurement.default(
                      margin_left=10,
                      margin_right=10,
-                     width=ViewSize.MATCH_PARENT
+                     size=0.4
                  )),
         View(context,
              prefer=ViewMeasurement(size=0.5)),

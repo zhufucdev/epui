@@ -113,6 +113,7 @@ class ViewMeasurement:
 
     @staticmethod
     def default(position: Tuple[float, float] = (0, 0),
+                size: EffectiveSize | float = ViewSize.WRAP_CONTENT,
                 width: ViewSize | float = ViewSize.WRAP_CONTENT,
                 height: ViewSize | float = ViewSize.WRAP_CONTENT,
                 margin: float = 0,
@@ -121,10 +122,16 @@ class ViewMeasurement:
                 margin_bottom: float = 0,
                 margin_left: float = 0) -> 'ViewMeasurement':
         if margin > 0:
-            margin_tuple = (margin, margin, margin, margin)
+            _margin = (margin, margin, margin, margin)
         else:
-            margin_tuple = (margin_top, margin_right, margin_bottom, margin_left)
-        return ViewMeasurement(position, (width, height), margin_tuple)
+            _margin = (margin_top, margin_right, margin_bottom, margin_left)
+
+        if size != ViewSize.WRAP_CONTENT:
+            _size = size
+        else:
+            _size = (width, height)
+
+        return ViewMeasurement(position, _size, _margin)
 
 
 class View:
@@ -308,12 +315,16 @@ class TextView(View):
                  fill: int = 0,
                  stroke: float = 0,
                  line_align: ViewAlignmentHorizontal = ViewAlignmentHorizontal.LEFT,
+                 align_horizontal: ViewAlignmentHorizontal = ViewAlignmentHorizontal.LEFT,
+                 align_vertical: ViewAlignmentVertical = ViewAlignmentVertical.TOP,
                  prefer: ViewMeasurement = ViewMeasurement.default()):
         self.__text = text
         self.__font = font
         self.__font_size = font_size
         self.__fill = fill
         self.__align = line_align
+        self.__align_horizontal = align_horizontal
+        self.__align_vertical = align_vertical
         self.__stroke = stroke
         super().__init__(context, prefer)
 
@@ -365,6 +376,22 @@ class TextView(View):
             self.__align = align
             self.context.request_redraw()
 
+    def get_align_vertical(self):
+        return self.__align_vertical
+
+    def set_align_vertical(self, align: ViewAlignmentVertical):
+        if align != self.__align_vertical:
+            self.__align_vertical = align
+            self.context.request_redraw()
+
+    def get_align_horizontal(self):
+        return self.__align_horizontal
+
+    def set_align_horizontal(self, align: ViewAlignmentHorizontal):
+        if align != self.__align_horizontal:
+            self.__align_horizontal = align
+            self.context.request_redraw()
+
     def __get_pil_font(self):
         return ImageFont.truetype(font=self.__font, size=self.__font_size)
 
@@ -385,8 +412,23 @@ class TextView(View):
         return max_width, height
 
     def draw(self, canvas: ImageDraw.ImageDraw, scale: float):
+        content_size = self.content_size()
+        if self.__align_vertical == ViewAlignmentVertical.TOP:
+            y = 0
+        elif self.__align_vertical == ViewAlignmentVertical.BOTTOM:
+            y = self.actual_measurement.size[1] - content_size[1]
+        else:
+            y = (self.actual_measurement.size[1] - content_size[1]) / 2
+
+        if self.__align_horizontal == ViewAlignmentHorizontal.LEFT:
+            x = 0
+        elif self.__align_horizontal == ViewAlignmentHorizontal.RIGHT:
+            x = self.actual_measurement.size[0] - content_size[0]
+        else:
+            x = (self.actual_measurement.size[0] - content_size[0]) / 2
+
         canvas.text(
-            xy=(0, 0),
+            xy=(x, y),
             text=self.__text,
             font=self.__get_pil_font(),
             fill=self.__fill,
