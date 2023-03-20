@@ -58,8 +58,7 @@ class Context:
     def redraw_once(self):
         self.__main_canvas.rectangle(
             [0, 0, self.canvas_size[0], self.canvas_size[1]], fill=255)  # clear canvas
-        self.root_group.draw(
-            self.__main_canvas, self.scale)
+        self.root_group.draw(self.__main_canvas, self.scale)
 
     def on_redraw(self, listener):
         self.__redraw_listener = listener
@@ -205,9 +204,8 @@ class Group(View):
         return [child for child in self.__children]
 
     def draw(self, canvas: ImageDraw.ImageDraw, scale: float):
-        measurements = self.measure(canvas)
+        self.measure()
         for child in self.__children:
-            child.actual_measurement = measurements[child]
             partial = Image.new('L', util.int_vector(child.actual_measurement.size), 255)
             partial_canvas = ImageDraw.Draw(partial)
             child.draw(partial_canvas, scale)
@@ -223,8 +221,7 @@ class Group(View):
                 _max[1] = child.content_size()[1]
         return _max[0], _max[1]
 
-    def measure(self, canvas: ImageDraw.ImageDraw) -> Dict[View, ViewMeasurement]:
-        measurements = {}
+    def measure(self):
         for child in self.__children:
             position = child.preferred_measurement.position
             size = get_effective_size(child, self.actual_measurement.size)
@@ -245,9 +242,8 @@ class Group(View):
             elif not util.is_inside(remaining_space, size):
                 # the child can not fit the group
                 size = remaining_space
-            measurements[child] = ViewMeasurement(position, size, child.preferred_measurement.margin)
 
-        return measurements
+            child.actual_measurement = ViewMeasurement(position, size, child.preferred_measurement.margin)
 
 
 class VGroup(Group):
@@ -257,12 +253,22 @@ class VGroup(Group):
         self.alignment = alignment
         super().__init__(context, prefer)
 
-    def measure(self, canvas: ImageDraw.ImageDraw) -> Dict[View, ViewMeasurement]:
-        measurements = {}
-        measurements_indexed = []
+    def content_size(self) -> Tuple[float, float]:
+        bound = [0, 0]
+        for child in self.get_children():
+            size = child.content_size()
+            preference = child.preferred_measurement
+            size = [size[0] + preference.margin[1] + preference.margin[3],
+                    size[1] + preference.margin[0] + preference.margin[2]]
+            if size[0] > bound[0]:
+                bound[0] = size[0]
+            bound[1] += size[1]
+        return bound[0], bound[1]
 
-        for index, child in enumerate(super().get_children()):
-            position = child.preferred_measurement.position
+    def measure(self):
+        measures = []
+
+        for index, child in enumerate(self.get_children()):
             size = child.preferred_measurement.size
             margin = child.preferred_measurement.margin
             if type(size) is float:
@@ -272,7 +278,7 @@ class VGroup(Group):
                 size = get_effective_size(child, self.actual_measurement.size)
 
             if index > 0:
-                last = measurements_indexed[index - 1]
+                last = measures[index - 1]
                 last_measure_bottom = last.position[1] + last.size[1] + last.margin[2]
             else:
                 last_measure_bottom = 0
@@ -284,13 +290,12 @@ class VGroup(Group):
                 position = (margin[3], margin[0] + last_measure_bottom)
             elif self.alignment == ViewAlignmentHorizontal.RIGHT:
                 position = (self.actual_measurement.size[0] - size[0] - margin[3], margin[0] + last_measure_bottom)
-            elif self.alignment == ViewAlignmentHorizontal.CENTER:
+            else:
                 position = ((self.actual_measurement.size[0] - size[0]) / 2, margin[0] + last_measure_bottom)
 
-            measurements[child] = ViewMeasurement(position, size, margin)
-            measurements_indexed.append(ViewMeasurement(position, size, margin))
-
-        return measurements
+            measurement = ViewMeasurement(position, size, margin)
+            measures.append(measurement)
+            child.actual_measurement = measurement
 
 
 def get_effective_size(child: View, parent_size: Tuple[float, float]):

@@ -22,18 +22,22 @@ from ui import *
 
 CANVAS_SIZE = (800, 480)
 
+
 def main():
-    image = Image.new('L', CANVAS_SIZE, 255) # a greyscale image
-    draw = ImageDraw.Draw(image) # create a canvas
-    context = Context(draw, CANVAS_SIZE, scale=1) # context is where all view live in
+    image = Image.new('L', CANVAS_SIZE, 255)  # a greyscale image
+    draw = ImageDraw.Draw(image)  # create a canvas
+    context = Context(draw, CANVAS_SIZE, scale=1)  # context is where all view live in
     text = TextView(
         context,
-        text="How's it going?", 
-        font_size=20, 
+        text="How's it going?",
+        font_size=20,
+        align_horizontal=ViewAlignmentHorizontal.CENTER,
+        align_vertical=ViewAlignmentVertical.CENTER,
         prefer=ViewMeasurement.default(width=ViewSize.MATCH_PARENT, height=ViewSize.MATCH_PARENT)
     )
     context.root_group.add_view(text)
     render(context)
+
 
 if __name__ == "__main__":
     main()
