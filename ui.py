@@ -215,25 +215,24 @@ class Group(View):
     def content_size(self) -> Tuple[float, float]:
         _max = [0, 0]
         for child in self.__children:
-            if child.content_size()[0] > _max[0]:
+            margin = child.preferred_measurement.margin
+            if child.content_size()[0] + margin[1] + margin[3] > _max[0]:
                 _max[0] = child.content_size()[0]
-            if child.content_size()[1] > _max[1]:
+            if child.content_size()[1] + margin[0] + margin[2] > _max[1]:
                 _max[1] = child.content_size()[1]
         return _max[0], _max[1]
 
     def measure(self):
         for child in self.__children:
-            position = child.preferred_measurement.position
+            margin = child.preferred_measurement.margin
+            position = util.plus(child.preferred_measurement.position, (margin[3], margin[0]))
             size = get_effective_size(child, self.actual_measurement.size)
-            remaining_space = util.subtract(
-                self.actual_measurement.size,
-                child.preferred_measurement.position
-            )
+            remaining_space = util.subtract(self.actual_measurement.size, position)
             if not util.is_positive(remaining_space):
                 # there's no room for the child
-                position = util.subtract(self.actual_measurement.size, size)
+                position = util.subtract(self.actual_measurement.size, util.plus(size, (margin[1], margin[2])))
                 if not util.is_positive(position):
-                    position = (0, 0)
+                    position = (margin[3], margin[0])
                     if size[0] > self.actual_measurement.size[0]:
                         size = (self.actual_measurement.size[0], child.size[1])
                     if size[1] > self.actual_measurement.size[1]:
@@ -241,9 +240,9 @@ class Group(View):
 
             elif not util.is_inside(remaining_space, size):
                 # the child can not fit the group
-                size = remaining_space
+                size = util.subtract(remaining_space, (margin[1], margin[2]))
 
-            child.actual_measurement = ViewMeasurement(position, size, child.preferred_measurement.margin)
+            child.actual_measurement = ViewMeasurement(position, size, margin)
 
 
 class VGroup(Group):
