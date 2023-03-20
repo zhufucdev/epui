@@ -3,7 +3,7 @@ from threading import Thread
 from time import sleep
 from typing import *
 
-from PIL import ImageDraw, Image
+from PIL import ImageDraw, Image, ImageFont
 
 import resources
 import util
@@ -115,11 +115,16 @@ class ViewMeasurement:
     def default(position: Tuple[float, float] = (0, 0),
                 width: ViewSize | float = ViewSize.WRAP_CONTENT,
                 height: ViewSize | float = ViewSize.WRAP_CONTENT,
+                margin: float = 0,
                 margin_top: float = 0,
                 margin_right: float = 0,
                 margin_bottom: float = 0,
                 margin_left: float = 0) -> 'ViewMeasurement':
-        return ViewMeasurement(position, (width, height), (margin_top, margin_right, margin_bottom, margin_left))
+        if margin > 0:
+            margin_tuple = (margin, margin, margin, margin)
+        else:
+            margin_tuple = (margin_top, margin_right, margin_bottom, margin_left)
+        return ViewMeasurement(position, (width, height), margin_tuple)
 
 
 class View:
@@ -152,7 +157,7 @@ class View:
         return 64, 64
 
     def draw(self, canvas: ImageDraw.ImageDraw, scale: float):
-        place_holder = resources.get_tint('view-gallery', 125)
+        place_holder = resources.get_image_tint('view-gallery', 0)
         size = self.actual_measurement.size
 
         def fit(rate):
@@ -193,7 +198,7 @@ class Group(View):
         return [child for child in self.__children]
 
     def draw(self, canvas: ImageDraw.ImageDraw, scale: float):
-        measurements = self.measure()
+        measurements = self.measure(canvas)
         for child in self.__children:
             child.actual_measurement = measurements[child]
             partial = Image.new('L', util.int_vector(child.actual_measurement.size), 255)
@@ -211,7 +216,7 @@ class Group(View):
                 _max[1] = child.content_size()[1]
         return _max[0], _max[1]
 
-    def measure(self) -> Dict[View, ViewMeasurement]:
+    def measure(self, canvas: ImageDraw.ImageDraw) -> Dict[View, ViewMeasurement]:
         measurements = {}
         for child in self.__children:
             position = child.preferred_measurement.position
@@ -245,7 +250,7 @@ class VGroup(Group):
         self.alignment = alignment
         super().__init__(context, prefer)
 
-    def measure(self) -> Dict[View, ViewMeasurement]:
+    def measure(self, canvas: ImageDraw.ImageDraw) -> Dict[View, ViewMeasurement]:
         measurements = {}
         measurements_indexed = []
 
@@ -266,13 +271,12 @@ class VGroup(Group):
                 last_measure_bottom = 0
 
             if size[0] + margin[1] + margin[3] > self.actual_measurement.size[0]:
-                size = (
-                    self.actual_measurement.size[0] - margin[1] - margin[3], size[1])
+                size = (self.actual_measurement.size[0] - margin[1] - margin[3], size[1])
 
             if self.alignment == ViewAlignmentHorizontal.LEFT:
                 position = (margin[3], margin[0] + last_measure_bottom)
             elif self.alignment == ViewAlignmentHorizontal.RIGHT:
-                position = (self.actual_measurement.size[0] - size[0], margin[0] + last_measure_bottom)
+                position = (self.actual_measurement.size[0] - size[0] - margin[3], margin[0] + last_measure_bottom)
             elif self.alignment == ViewAlignmentHorizontal.CENTER:
                 position = ((self.actual_measurement.size[0] - size[0]) / 2, margin[0] + last_measure_bottom)
 
@@ -293,3 +297,99 @@ def get_effective_size(child: View, parent_size: Tuple[float, float]):
     elif size[1] == ViewSize.WRAP_CONTENT:
         size = (size[0], child.content_size()[1])
     return size
+
+
+class TextView(View):
+    default_font = resources.get_file('DejaVuSans')
+
+    def __init__(self, context: Context, text: str,
+                 font=default_font,
+                 font_size: float = 10,
+                 fill: int = 0,
+                 stroke: float = 0,
+                 line_align: ViewAlignmentHorizontal = ViewAlignmentHorizontal.LEFT,
+                 prefer: ViewMeasurement = ViewMeasurement.default()):
+        self.__text = text
+        self.__font = font
+        self.__font_size = font_size
+        self.__fill = fill
+        self.__align = line_align
+        self.__stroke = stroke
+        super().__init__(context, prefer)
+
+    def get_text(self):
+        return self.__text
+
+    def set_text(self, text: str):
+        if text != self.__text:
+            self.__text = text
+            self.context.request_redraw()
+
+    def get_font(self):
+        return self.__font
+
+    def set_font(self, font: ImageFont.ImageFont):
+        if font != self.__font:
+            self.__font = font
+            self.context.request_redraw()
+
+    def get_font_size(self):
+        return self.__font_size
+
+    def set_font_size(self, font_size: float):
+        if font_size != self.__font_size:
+            self.__font_size = font_size
+            self.context.request_redraw()
+
+    def get_stroke(self):
+        return self.__stroke
+
+    def set_stroke(self, stroke: float):
+        if stroke != self.__stroke:
+            self.__stroke = stroke
+            self.context.request_redraw()
+
+    def get_fill_color(self):
+        return self.__fill
+
+    def set_fill_color(self, fill: int):
+        if fill != self.__fill:
+            self.__fill = fill
+            self.context.request_redraw()
+
+    def get_line_align(self):
+        return self.__align
+
+    def set_line_align(self, align: ViewAlignmentHorizontal):
+        if align != self.__align:
+            self.__align = align
+            self.context.request_redraw()
+
+    def __get_pil_font(self):
+        return ImageFont.truetype(font=self.__font, size=self.__font_size)
+
+    def content_size(self) -> Tuple[float, float]:
+        def single_line(text: str):
+            return self.__get_pil_font().getbbox(
+                text=text,
+                stroke_width=self.__stroke,
+            )
+
+        max_width = 0
+        height = 0
+        for line in self.__text.splitlines():
+            bound_box = single_line(line)
+            max_width = max(max_width, bound_box[2])
+            height += bound_box[3] + 5  # some fixed line margin
+
+        return max_width, height
+
+    def draw(self, canvas: ImageDraw.ImageDraw, scale: float):
+        canvas.text(
+            xy=(0, 0),
+            text=self.__text,
+            font=self.__get_pil_font(),
+            fill=self.__fill,
+            stroke_width=self.__stroke * scale,
+            align=self.__align.name.lower(),
+        )

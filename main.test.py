@@ -8,19 +8,23 @@ def main():
     draw = ImageDraw.Draw(image)
     context = Context(draw, CANVAS_SIZE)
     vgroup = VGroup(context,
+                    alignment=ViewAlignmentHorizontal.RIGHT,
                     prefer=ViewMeasurement.default(width=ViewSize.MATCH_PARENT))
     vgroup.add_views(
-        View(context, prefer=ViewMeasurement(size=0.5)),
+        TextView(context,
+                 text="What the fuck is going on?",
+                 font_size=50,
+                 line_align=ViewAlignmentHorizontal.CENTER,
+                 prefer=ViewMeasurement.default(
+                     margin_left=10,
+                     margin_right=10,
+                     width=ViewSize.MATCH_PARENT
+                 )),
+        View(context,
+             prefer=ViewMeasurement(size=0.5)),
         View(context,
              prefer=ViewMeasurement.default(
-                 margin_top=10,
-                 margin_bottom=10,
-                 width=ViewSize.MATCH_PARENT
-             )),
-        View(context,
-             prefer=ViewMeasurement.default(
-                 margin_left=10,
-                 margin_right=10,
+                 margin=10,
                  width=ViewSize.MATCH_PARENT
              )),
     )
