@@ -2,6 +2,10 @@ from typing import *
 
 
 def is_inside(parent: Tuple[float, float], child: Tuple[float, float]):
+    return child[0] <= parent[0] and child[1] <= parent[1]
+
+
+def is_strictly_inside(parent: Tuple[float, float], child: Tuple[float, float]):
     return child[0] < parent[0] and child[1] < parent[1]
 
 

@@ -1,3 +1,5 @@
+import logging
+import numbers
 from enum import Enum
 from threading import Thread
 from time import sleep
@@ -10,6 +12,7 @@ import util
 
 RELOAD_INTERVAL = 2
 RELOAD_AWAIT = 1  # delay 1 second before each global invalidation
+COLOR_TRANSPARENT = 254
 
 
 class EventLoopStatus(Enum):
@@ -183,8 +186,7 @@ class View:
         canvas._image.paste(place_holder,
                             util.int_vector(((size[0] - place_holder.size[0]) / 2,
                                              (size[1] - place_holder.size[1]) / 2)))
-        canvas.rectangle(
-            ((0, 0), (size[0], size[1])), fill=None, outline=0, width=6 * scale)
+        canvas.rectangle(((0, 0), (size[0], size[1])), fill=None, outline=0, width=6 * scale)
 
 
 class Group(View):
@@ -206,20 +208,32 @@ class Group(View):
     def draw(self, canvas: ImageDraw.ImageDraw, scale: float):
         self.measure()
         for child in self.__children:
-            partial = Image.new('L', util.int_vector(child.actual_measurement.size), 255)
+            partial = Image.new('L', util.int_vector(child.actual_measurement.size), COLOR_TRANSPARENT)
             partial_canvas = ImageDraw.Draw(partial)
             child.draw(partial_canvas, scale)
             # TODO: decouple
-            canvas._image.paste(partial, util.int_vector(child.actual_measurement.position))
+            overlay(canvas._image, partial, util.int_vector(child.actual_measurement.position))
 
     def content_size(self) -> Tuple[float, float]:
         _max = [0, 0]
         for child in self.__children:
             margin = child.preferred_measurement.margin
-            if child.content_size()[0] + margin[1] + margin[3] > _max[0]:
-                _max[0] = child.content_size()[0]
-            if child.content_size()[1] + margin[0] + margin[2] > _max[1]:
+            margin_h = margin[1] + margin[3]
+            margin_v = margin[0] + margin[2]
+            size = child.preferred_measurement.size
+            if size[0] == ViewSize.WRAP_CONTENT \
+                    and child.content_size()[0] + margin_h > _max[0]:
+                _max[0] = child.content_size()[0] + margin_h
+            elif type(size[0]) is float or type(size[0]) is int \
+                    and size[0] + margin_h > _max[0]:
+                _max[0] = size[0] + margin_h
+
+            if size[1] == ViewSize.WRAP_CONTENT \
+                    and child.content_size()[1] + margin_v > _max[1]:
                 _max[1] = child.content_size()[1]
+            elif type(size[1]) is float or type(size[1]) is int \
+                    and size[1] + margin_v > _max[1]:
+                _max[1] = size[1] + margin_v
         return _max[0], _max[1]
 
     def measure(self):
@@ -284,6 +298,8 @@ class VGroup(Group):
 
             if size[0] + margin[1] + margin[3] > self.actual_measurement.size[0]:
                 size = (self.actual_measurement.size[0] - margin[1] - margin[3], size[1])
+            if size[1] + margin[0] + margin[2] > self.actual_measurement.size[1] - last_measure_bottom:
+                size = (size[0], self.actual_measurement.size[1] - last_measure_bottom - margin[0] - margin[2])
 
             if self.alignment == ViewAlignmentHorizontal.LEFT:
                 position = (margin[3], margin[0] + last_measure_bottom)
@@ -308,6 +324,18 @@ def get_effective_size(child: View, parent_size: Tuple[float, float]):
     elif size[1] == ViewSize.WRAP_CONTENT:
         size = (size[0], child.content_size()[1])
     return size
+
+
+def overlay(background: Image.Image, foreground: Image.Image, position: Tuple[int, int]):
+    for y in range(foreground.size[1]):
+        for x in range(foreground.size[0]):
+            b_pos = (x + position[0], y + position[1])
+            if not util.is_strictly_inside(background.size, b_pos):
+                logging.warning('overlay: position out of bounds: %s', b_pos)
+                break
+            pf = foreground.getpixel((x, y))
+            if pf != COLOR_TRANSPARENT:
+                background.putpixel(b_pos, pf)
 
 
 class TextView(View):
@@ -438,4 +466,28 @@ class TextView(View):
             fill=self.__fill,
             stroke_width=self.__stroke * scale,
             align=self.__align.name.lower(),
+        )
+
+
+class Surface(View):
+    """
+    Surface is a view that displays pure color
+    """
+
+    def __init__(self, context: Context, fill: int = 0, prefer: ViewMeasurement = ViewMeasurement.default()):
+        self.__fill = fill
+        super().__init__(context, prefer)
+
+    def get_fill(self):
+        return self.__fill
+
+    def set_fill(self, fill: int):
+        if fill != self.__fill:
+            self.__fill = fill
+            self.context.request_redraw()
+
+    def draw(self, canvas: ImageDraw.ImageDraw, scale: float):
+        canvas.rectangle(
+            xy=((0, 0), self.actual_measurement.size),
+            fill=self.__fill,
         )
