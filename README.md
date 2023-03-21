@@ -27,19 +27,36 @@ def main():
     image = Image.new('L', CANVAS_SIZE, 255)  # a greyscale image
     draw = ImageDraw.Draw(image)  # create a canvas
     context = Context(draw, CANVAS_SIZE)
-    vgroup = VGroup(context, # vertical group
+    vgroup = VGroup(context, # vertical group is where subviews are laid vertically
                     alignment=ViewAlignmentHorizontal.CENTER,
                     prefer=ViewMeasurement.default(
                         width=ViewSize.MATCH_PARENT,
                         height=ViewSize.MATCH_PARENT
                     ))
-    header = Group(context,
+    header = Group(context, # a simple group is where subviews are anchored on the same pot
                    prefer=ViewMeasurement.default(
                        width=ViewSize.MATCH_PARENT,
                        height=70 # 70px
                    ))
+    content = HGroup(context,
+                     prefer=ViewMeasurement.default(
+                         width=ViewSize.MATCH_PARENT,
+                         height=ViewSize.MATCH_PARENT
+                     ))
+    """
+    view tree:
+    root
+    ├── vgroup
+    │   ├── header: Group
+    │   │   ├── Surface
+    │   │   └── TextView
+    │   └── content: HGroup
+    │       ├── View
+    │       └── View
+    """
     context.root_group.add_view(vgroup)
     vgroup.add_view(header)
+    vgroup.add_view(content)
 
     header.add_view(
         Surface(
@@ -69,6 +86,18 @@ def main():
              prefer=ViewMeasurement.default(
                  width=ViewSize.MATCH_PARENT,
                  height=ViewSize.MATCH_PARENT
+             ))
+    )
+    content.add_view(
+        View(context,
+             prefer=ViewMeasurement.default(
+                 size=0.5
+             ))
+    )
+    content.add_view(
+        View(context,
+             prefer=ViewMeasurement.default(
+                 size=0.5
              ))
     )
     render(context)
