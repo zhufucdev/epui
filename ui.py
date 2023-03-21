@@ -1,5 +1,4 @@
 import logging
-import numbers
 from enum import Enum
 from threading import Thread
 from time import sleep
@@ -104,7 +103,7 @@ class ViewAlignmentHorizontal(Enum):
 
 class ViewMeasurement:
     def __init__(self, position: Tuple[float, float] = (0, 0),
-                 size: EffectiveSize = (ViewSize.WRAP_CONTENT, ViewSize.WRAP_CONTENT),
+                 size: ViewSize | EffectiveSize = ViewSize.WRAP_CONTENT,
                  margin: Tuple[float, float, float, float] = (0, 0, 0, 0)) -> None:
         """
         :param margin: defined as [top, right, bottom, left]
@@ -128,8 +127,8 @@ class ViewMeasurement:
         else:
             _margin = (margin_top, margin_right, margin_bottom, margin_left)
 
-        if size != ViewSize.WRAP_CONTENT:
-            _size = size
+        if size == ViewSize.MATCH_PARENT:
+            _size = (size, size)
         else:
             _size = (width, height)
 
