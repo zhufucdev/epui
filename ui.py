@@ -114,7 +114,7 @@ class ViewMeasurement:
 
     @staticmethod
     def default(position: Tuple[float, float] = (0, 0),
-                size: EffectiveSize | float = ViewSize.WRAP_CONTENT,
+                size: ViewSize | EffectiveSize | float = ViewSize.WRAP_CONTENT,
                 width: ViewSize | float = ViewSize.WRAP_CONTENT,
                 height: ViewSize | float = ViewSize.WRAP_CONTENT,
                 margin: float = 0,
