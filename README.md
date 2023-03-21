@@ -26,16 +26,51 @@ CANVAS_SIZE = (800, 480)
 def main():
     image = Image.new('L', CANVAS_SIZE, 255)  # a greyscale image
     draw = ImageDraw.Draw(image)  # create a canvas
-    context = Context(draw, CANVAS_SIZE, scale=1)  # context is where all view live in
-    text = TextView(
-        context,
-        text="How's it going?",
-        font_size=20,
-        align_horizontal=ViewAlignmentHorizontal.CENTER,
-        align_vertical=ViewAlignmentVertical.CENTER,
-        prefer=ViewMeasurement.default(width=ViewSize.MATCH_PARENT, height=ViewSize.MATCH_PARENT)
+    context = Context(draw, CANVAS_SIZE)
+    vgroup = VGroup(context, # vertical group
+                    alignment=ViewAlignmentHorizontal.CENTER,
+                    prefer=ViewMeasurement.default(
+                        width=ViewSize.MATCH_PARENT,
+                        height=ViewSize.MATCH_PARENT
+                    ))
+    header = Group(context,
+                   prefer=ViewMeasurement.default(
+                       width=ViewSize.MATCH_PARENT,
+                       height=70 # 70px
+                   ))
+    context.root_group.add_view(vgroup)
+    vgroup.add_view(header)
+
+    header.add_view(
+        Surface(
+            context,
+            prefer=ViewMeasurement.default(
+                width=ViewSize.MATCH_PARENT,
+                height=ViewSize.MATCH_PARENT
+            )
+        )
     )
-    context.root_group.add_view(text)
+    header.add_view(
+        TextView(
+            context,
+            text="How's it going?",
+            font_size=24,
+            fill=255, # white to be visible over black header
+            align_horizontal=ViewAlignmentHorizontal.CENTER,
+            prefer=ViewMeasurement.default(
+                width=ViewSize.MATCH_PARENT,
+                height=ViewSize.WRAP_CONTENT,
+                margin_top=20
+            )
+        )
+    )
+    vgroup.add_view(
+        View(context,
+             prefer=ViewMeasurement.default(
+                 width=ViewSize.MATCH_PARENT,
+                 height=ViewSize.MATCH_PARENT
+             ))
+    )
     render(context)
 
 
@@ -58,6 +93,6 @@ from ui import *
 
 def render(context: Context, image: Image):
     context.on_redraw(lambda: epd.display(image)) # use your epd driver or something
-    context.start()
+    context.start() # blocks the current thread to make sure the UI is responsive
 ```
 
