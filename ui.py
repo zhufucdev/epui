@@ -263,8 +263,16 @@ class VGroup(Group):
     def __init__(self, context: Context,
                  alignment: ViewAlignmentHorizontal = ViewAlignmentHorizontal.LEFT,
                  prefer: ViewMeasurement = ViewMeasurement.default()) -> None:
-        self.alignment = alignment
+        self.__alignment = alignment
         super().__init__(context, prefer)
+
+    def get_alignment(self):
+        return self.__alignment
+
+    def set_alignment(self, alignment: ViewAlignmentHorizontal):
+        if self.__alignment != alignment:
+            self.__alignment = alignment
+            self.context.request_redraw()
 
     def content_size(self) -> Tuple[float, float]:
         bound = [0, 0]
@@ -301,12 +309,74 @@ class VGroup(Group):
             if size[1] + margin[0] + margin[2] > self.actual_measurement.size[1] - last_measure_bottom:
                 size = (size[0], self.actual_measurement.size[1] - last_measure_bottom - margin[0] - margin[2])
 
-            if self.alignment == ViewAlignmentHorizontal.LEFT:
+            if self.__alignment == ViewAlignmentHorizontal.LEFT:
                 position = (margin[3], margin[0] + last_measure_bottom)
-            elif self.alignment == ViewAlignmentHorizontal.RIGHT:
+            elif self.__alignment == ViewAlignmentHorizontal.RIGHT:
                 position = (self.actual_measurement.size[0] - size[0] - margin[3], margin[0] + last_measure_bottom)
             else:
                 position = ((self.actual_measurement.size[0] - size[0]) / 2, margin[0] + last_measure_bottom)
+
+            measurement = ViewMeasurement(position, size, margin)
+            measures.append(measurement)
+            child.actual_measurement = measurement
+
+
+class HGroup(Group):
+    def __init__(self, context: Context,
+                 alignment: ViewAlignmentVertical = ViewAlignmentVertical.TOP,
+                 prefer: ViewMeasurement = ViewMeasurement.default()) -> None:
+        self.__alignment = alignment
+        super().__init__(context, prefer)
+
+    def get_alignment(self):
+        return self.__alignment
+
+    def set_alignment(self, alignment: ViewAlignmentVertical):
+        if self.__alignment != alignment:
+            self.__alignment = alignment
+            self.context.request_redraw()
+
+    def content_size(self) -> Tuple[float, float]:
+        bound = [0, 0]
+        for child in self.get_children():
+            size = child.content_size()
+            preference = child.preferred_measurement
+            size = [size[0] + preference.margin[1] + preference.margin[3],
+                    size[1] + preference.margin[0] + preference.margin[2]]
+            if size[1] > bound[1]:
+                bound[1] = size[1]
+            bound[0] += size[0]
+        return bound[0], bound[1]
+
+    def measure(self):
+        measures = []
+
+        for index, child in enumerate(self.get_children()):
+            size = child.preferred_measurement.size
+            margin = child.preferred_measurement.margin
+            if type(size) is float:
+                # percentage
+                size = (self.actual_measurement.size[0] * size, self.actual_measurement.size[1])
+            else:
+                size = get_effective_size(child, self.actual_measurement.size)
+
+            if index > 0:
+                last = measures[index - 1]
+                last_measure_right = last.position[0] + last.size[0] + last.margin[1]
+            else:
+                last_measure_right = 0
+
+            if size[0] + margin[1] + margin[3] > self.actual_measurement.size[0] - last_measure_right:
+                size = (self.actual_measurement.size[0] - last_measure_right - margin[1] - margin[3], size[1])
+            if size[1] + margin[0] + margin[2] > self.actual_measurement.size[1]:
+                size = (size[0], self.actual_measurement.size[1] - margin[0] - margin[2])
+
+            if self.__alignment == ViewAlignmentVertical.TOP:
+                position = (margin[3] + last_measure_right, margin[0])
+            elif self.__alignment == ViewAlignmentVertical.BOTTOM:
+                position = (margin[3] + last_measure_right, self.actual_measurement.size[1] - size[1] - margin[2])
+            else:
+                position = (margin[3] + last_measure_right, (self.actual_measurement.size[1] - size[1]) / 2)
 
             measurement = ViewMeasurement(position, size, margin)
             measures.append(measurement)
