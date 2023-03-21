@@ -129,6 +129,8 @@ class ViewMeasurement:
 
         if size == ViewSize.MATCH_PARENT:
             _size = (size, size)
+        elif type(size) is float:
+            _size = size
         else:
             _size = (width, height)
 
