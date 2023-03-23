@@ -125,3 +125,6 @@ def render(context: Context, image: Image):
     context.start() # blocks the current thread to make sure the UI is responsive
 ```
 
+You should get a render like this
+
+![sample](./screenshots/sample.png)
