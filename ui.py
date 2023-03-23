@@ -7,11 +7,11 @@ from typing import *
 from PIL import ImageDraw, Image, ImageFont
 
 import resources
+from resources import COLOR_TRANSPARENT
 import util
 
 RELOAD_INTERVAL = 2
 RELOAD_AWAIT = 1  # delay 1 second before each global invalidation
-COLOR_TRANSPARENT = 254
 
 
 class EventLoopStatus(Enum):
@@ -273,7 +273,7 @@ class VGroup(Group):
     def set_alignment(self, alignment: ViewAlignmentHorizontal):
         if self.__alignment != alignment:
             self.__alignment = alignment
-            self.context.request_redraw()
+            self.invalidate()
 
     def content_size(self) -> Tuple[float, float]:
         bound = [0, 0]
@@ -335,7 +335,7 @@ class HGroup(Group):
     def set_alignment(self, alignment: ViewAlignmentVertical):
         if self.__alignment != alignment:
             self.__alignment = alignment
-            self.context.request_redraw()
+            self.invalidate()
 
     def content_size(self) -> Tuple[float, float]:
         bound = [0, 0]
@@ -437,7 +437,7 @@ class TextView(View):
     def set_text(self, text: str):
         if text != self.__text:
             self.__text = text
-            self.context.request_redraw()
+            self.invalidate()
 
     def get_font(self):
         return self.__font
@@ -445,7 +445,7 @@ class TextView(View):
     def set_font(self, font: ImageFont.ImageFont):
         if font != self.__font:
             self.__font = font
-            self.context.request_redraw()
+            self.invalidate()
 
     def get_font_size(self):
         return self.__font_size
@@ -453,7 +453,7 @@ class TextView(View):
     def set_font_size(self, font_size: float):
         if font_size != self.__font_size:
             self.__font_size = font_size
-            self.context.request_redraw()
+            self.invalidate()
 
     def get_stroke(self):
         return self.__stroke
@@ -461,7 +461,7 @@ class TextView(View):
     def set_stroke(self, stroke: float):
         if stroke != self.__stroke:
             self.__stroke = stroke
-            self.context.request_redraw()
+            self.invalidate()
 
     def get_fill_color(self):
         return self.__fill
@@ -469,7 +469,7 @@ class TextView(View):
     def set_fill_color(self, fill: int):
         if fill != self.__fill:
             self.__fill = fill
-            self.context.request_redraw()
+            self.invalidate()
 
     def get_line_align(self):
         return self.__align
@@ -477,7 +477,7 @@ class TextView(View):
     def set_line_align(self, align: ViewAlignmentHorizontal):
         if align != self.__align:
             self.__align = align
-            self.context.request_redraw()
+            self.invalidate()
 
     def get_align_vertical(self):
         return self.__align_vertical
@@ -485,7 +485,7 @@ class TextView(View):
     def set_align_vertical(self, align: ViewAlignmentVertical):
         if align != self.__align_vertical:
             self.__align_vertical = align
-            self.context.request_redraw()
+            self.invalidate()
 
     def get_align_horizontal(self):
         return self.__align_horizontal
@@ -493,7 +493,7 @@ class TextView(View):
     def set_align_horizontal(self, align: ViewAlignmentHorizontal):
         if align != self.__align_horizontal:
             self.__align_horizontal = align
-            self.context.request_redraw()
+            self.invalidate()
 
     def __get_pil_font(self):
         return ImageFont.truetype(font=self.__font, size=self.__font_size)
@@ -562,3 +562,96 @@ class Surface(View):
             xy=((0, 0), self.actual_measurement.size),
             fill=self.__fill,
         )
+
+
+class ImageContentFit(Enum):
+    """
+    Stretch the image to its largest, no space left
+    """
+    STRETCH = 0
+    """
+    Crop the image to fit the view, no space left
+    """
+    CROP = 1
+    """
+    Fit the image to view's height or width, space left
+    """
+    FIT = 2
+
+
+class ImageView(View):
+    def __init__(self, context: Context, image: Image.Image | str,
+                 fit: ImageContentFit = ImageContentFit.FIT,
+                 prefer: ViewMeasurement = ViewMeasurement.default()):
+        """
+        A view that shows a static view of image
+        :param context: the context
+        :param fit: method to handle oversized images or something
+        :param image: the image instance or its representation
+        :param prefer: the preferred measurement
+        """
+        super().__init__(context, prefer)
+        self.__image = image
+        self.__fit = fit
+
+    def get_image(self):
+        return self.__image
+
+    def set_image(self, image: Image.Image | str):
+        if image != self.__image:
+            self.__image = image
+            self.invalidate()
+
+    def get_fit(self):
+        return self.__fit
+
+    def set_fit(self, fit: ImageContentFit):
+        if fit != self.__fit:
+            self.__fit = fit
+            self.invalidate()
+
+    def content_size(self) -> Tuple[float, float]:
+        return self.__image.size
+
+    def draw(self, canvas: ImageDraw.ImageDraw, scale: float):
+        if self.actual_measurement.size == self.content_size():
+            overlay(canvas._image, self.__image, (0, 0))
+            return
+
+        if self.__fit == ImageContentFit.STRETCH:
+            resized = self.__image.resize(self.actual_measurement.size)
+            overlay(canvas._image, resized, (0, 0))
+        elif self.__fit == ImageContentFit.CROP:
+            content_size = self.content_size()
+            target_size = self.actual_measurement.size
+            if content_size[0] > content_size[1]:
+                rate = target_size[1] / content_size[1]
+                left = int((content_size[0] * rate + target_size[0]) / 2)
+                resized = self.__image.resize(
+                    (int(content_size[0] * rate), target_size[1])
+                )
+                overlay(canvas._image, resized, (-left, 0))
+            else:
+                rate = target_size[0] / content_size[0]
+                top = int((content_size[1] * rate + target_size[1]) / 2)
+                resized = self.__image.resize(
+                    (target_size[0], int(content_size[1] * rate))
+                )
+                overlay(canvas._image, resized, (-top, 0))
+        else:
+            content_size = self.content_size()
+            target_size = self.actual_measurement.size
+            if content_size[0] > content_size[1]:
+                rate = target_size[0] / content_size[0]
+                top = int((target_size[1] - content_size[1] * rate) / 2)
+                resized = self.__image.resize(
+                    (target_size[0], int(content_size[1] * rate))
+                )
+                overlay(canvas._image, resized, (0, top))
+            else:
+                rate = target_size[1] / content_size[1]
+                left = int((target_size[0] - content_size[0] * rate) / 2)
+                resized = self.__image.resize(
+                    (int(content_size[0] * rate), target_size[1])
+                )
+                overlay(canvas._image, resized, (left, 0))
