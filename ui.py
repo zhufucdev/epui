@@ -549,6 +549,19 @@ class Surface(View):
         self.__fill = fill
         super().__init__(context, prefer)
 
+    def content_size(self) -> Tuple[float, float]:
+        def effective(size: EffectiveSize | float):
+            if type(size) is ViewSize:
+                return 0
+            else:
+                return size
+
+        prefer = self.preferred_measurement.size
+        if type(prefer) is tuple:
+            return effective(prefer[0]), effective(prefer[1])
+        else:
+            return 64, 64
+
     def get_fill(self):
         return self.__fill
 
