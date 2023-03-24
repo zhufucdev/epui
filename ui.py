@@ -407,6 +407,7 @@ def overlay(background: Image.Image, foreground: Image.Image, position: Tuple[in
 
 class TextView(View):
     default_font = resources.get_file('DejaVuSans')
+    default_font_bold = resources.get_file('DejaVuSans-Bold')
 
     def __init__(self, context: Context, text: str,
                  font=default_font,
