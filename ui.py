@@ -1,4 +1,5 @@
 import logging
+import numbers
 from enum import Enum
 from threading import Thread
 from time import sleep
@@ -141,6 +142,7 @@ class View:
     """
     Something that can be drawn on the screen
     """
+    draw_view_box = False
 
     def __init__(self, context: Context, prefer: ViewMeasurement = ViewMeasurement.default()) -> None:
         """
@@ -187,7 +189,8 @@ class View:
         canvas._image.paste(place_holder,
                             util.int_vector(((size[0] - place_holder.size[0]) / 2,
                                              (size[1] - place_holder.size[1]) / 2)))
-        canvas.rectangle(((0, 0), (size[0], size[1])), fill=None, outline=0, width=6 * scale)
+        if View.draw_view_box:
+            canvas.rectangle(((0, 0), (size[0], size[1])), fill=None, outline=0, width=int(2 * scale))
 
 
 class Group(View):
@@ -208,6 +211,8 @@ class Group(View):
 
     def draw(self, canvas: ImageDraw.ImageDraw, scale: float):
         self.measure()
+        if View.draw_view_box:
+            canvas.rectangle(((0, 0), self.actual_measurement.size), outline=0, width=int(scale * 2))
         for child in self.__children:
             partial = Image.new('L', util.int_vector(child.actual_measurement.size), COLOR_TRANSPARENT)
             partial_canvas = ImageDraw.Draw(partial)
@@ -278,10 +283,7 @@ class VGroup(Group):
     def content_size(self) -> Tuple[float, float]:
         bound = [0, 0]
         for child in self.get_children():
-            size = child.content_size()
-            preference = child.preferred_measurement
-            size = [size[0] + preference.margin[1] + preference.margin[3],
-                    size[1] + preference.margin[0] + preference.margin[2]]
+            size = get_predefined_size(child)
             if size[0] > bound[0]:
                 bound[0] = size[0]
             bound[1] += size[1]
@@ -340,10 +342,7 @@ class HGroup(Group):
     def content_size(self) -> Tuple[float, float]:
         bound = [0, 0]
         for child in self.get_children():
-            size = child.content_size()
-            preference = child.preferred_measurement
-            size = [size[0] + preference.margin[1] + preference.margin[3],
-                    size[1] + preference.margin[0] + preference.margin[2]]
+            size = get_predefined_size(child)
             if size[1] > bound[1]:
                 bound[1] = size[1]
             bound[0] += size[0]
@@ -395,6 +394,18 @@ def get_effective_size(child: View, parent_size: Tuple[float, float]):
     elif size[1] == ViewSize.WRAP_CONTENT:
         size = (size[0], child.content_size()[1])
     return size
+
+def get_predefined_size(child: View):
+    size = child.content_size()
+    preference = child.preferred_measurement
+    # use preferred size if set numerically
+    if isinstance(preference.size[0], numbers.Number):
+        size = (preference.size[0], size[1])
+    if isinstance(preference.size[1], numbers.Number):
+        size = (size[0], preference.size[1])
+
+    return (size[0] + preference.margin[1] + preference.margin[3],
+            size[1] + preference.margin[0] + preference.margin[2])
 
 
 def overlay(background: Image.Image, foreground: Image.Image, position: Tuple[int, int]):
