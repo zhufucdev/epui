@@ -141,8 +141,10 @@ class ViewMeasurement:
 class View:
     """
     Something that can be drawn on the screen
+
+    By default, a plain View object draws nothing unless `View.draw_bounds_box` is overridden
     """
-    draw_view_box = False
+    draw_bounds_box = False
 
     def __init__(self, context: Context, prefer: ViewMeasurement = ViewMeasurement.default()) -> None:
         """
@@ -169,27 +171,8 @@ class View:
         return 64, 64
 
     def draw(self, canvas: ImageDraw.ImageDraw, scale: float):
-        place_holder = resources.get_image_tint('view-gallery', 0)
-        size = self.actual_measurement.size
-
-        def fit(rate):
-            return place_holder.resize((int(place_holder.size[0] * rate), int(place_holder.size[1] * rate)))
-
-        if size[0] > 64 and size[1] > 64:
-            _size = (size[0] - 64 * scale, size[1] - 64 * scale)  # margin
-        else:
-            _size = size
-
-        if not (_size[0] > place_holder.size[0] and _size[1] > place_holder.size[1]):
-            if place_holder.size[0] > place_holder.size[1]:
-                place_holder = fit(_size[0] / place_holder.size[0])
-            else:
-                place_holder = fit(_size[1] / place_holder.size[1])
-
-        canvas._image.paste(place_holder,
-                            util.int_vector(((size[0] - place_holder.size[0]) / 2,
-                                             (size[1] - place_holder.size[1]) / 2)))
-        if View.draw_view_box:
+        if View.draw_bounds_box:
+            size = self.actual_measurement.size
             canvas.rectangle(((0, 0), (size[0], size[1])), fill=None, outline=0, width=int(2 * scale))
 
 
@@ -210,8 +193,9 @@ class Group(View):
         return [child for child in self.__children]
 
     def draw(self, canvas: ImageDraw.ImageDraw, scale: float):
+        super().draw(canvas, scale)
         self.measure()
-        if View.draw_view_box:
+        if View.draw_bounds_box:
             canvas.rectangle(((0, 0), self.actual_measurement.size), outline=0, width=int(scale * 2))
         for child in self.__children:
             partial = Image.new('L', util.int_vector(child.actual_measurement.size), COLOR_TRANSPARENT)
@@ -395,6 +379,7 @@ def get_effective_size(child: View, parent_size: Tuple[float, float]):
         size = (size[0], child.content_size()[1])
     return size
 
+
 def get_predefined_size(child: View):
     size = child.content_size()
     preference = child.preferred_measurement
@@ -526,6 +511,7 @@ class TextView(View):
         return max_width, height
 
     def draw(self, canvas: ImageDraw.ImageDraw, scale: float):
+        super().draw(canvas, scale)
         content_size = self.content_size()
         if self.__align_vertical == ViewAlignmentVertical.TOP:
             y = 0
@@ -582,6 +568,7 @@ class Surface(View):
             self.context.request_redraw()
 
     def draw(self, canvas: ImageDraw.ImageDraw, scale: float):
+        super().draw(canvas, scale)
         canvas.rectangle(
             xy=((0, 0), self.actual_measurement.size),
             fill=self.__fill,
@@ -638,6 +625,8 @@ class ImageView(View):
         return self.__image.size
 
     def draw(self, canvas: ImageDraw.ImageDraw, scale: float):
+        super().draw(canvas, scale)
+
         if self.actual_measurement.size == self.content_size():
             overlay(canvas._image, self.__image, (0, 0))
             return
