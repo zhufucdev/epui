@@ -1,7 +1,10 @@
 from enum import Enum
 
 import resources
-from ui import VGroup, Context, ViewMeasurement, ViewAlignmentHorizontal, ImageView, ViewSize, TextView
+from ui import VGroup, Context, ViewMeasurement, ViewAlignmentHorizontal, ImageView, ViewSize, TextView, HGroup, \
+    Surface, ViewAlignmentVertical
+import time as pytime
+from typing import *
 
 
 class Location:
@@ -30,7 +33,18 @@ class TemperatureUnit(Enum):
 
 
 class Weather:
-    def __init__(self, day: Day, temperature: float, humidity: float, pressure: float, uv_index: int):
+    def __init__(self,
+                 time: Tuple = pytime.localtime(),
+                 day: Day = Day.CLEAR,
+                 temperature: float = 22,
+                 humidity: float = 0.2,
+                 pressure: float = 10,
+                 uv_index: int = 5):
+        """
+        All these default parameters are for testing purpose, and
+        should be set by the weather provider.
+        """
+        self.time = time
         self.day = day
         self.temperature = temperature
         self.humidity = humidity
@@ -49,7 +63,12 @@ class WeatherProvider:
     def get_temperature_unit(self):
         return self.__temperature_unit
 
-    def get_weather(self) -> Weather:
+    def get_weather(self) -> List[Weather]:
+        """
+        Refresh the weather query
+        :return: list of weather infos, sorted from the most recent to the farthest future,
+         length of the which is undefined
+        """
         pass
 
 
@@ -57,15 +76,15 @@ class TestWeatherProvider(WeatherProvider):
     def __init__(self, weather: Weather):
         location = Location(0, 0, 'Test Land')
         self.__weather = weather
-        super().__init__(location, TemperatureUnit.KELVIN)
+        super().__init__(location, TemperatureUnit.CELSIUS)
 
-    def get_weather(self) -> Weather:
-        return self.__weather
+    def get_weather(self) -> List[Weather]:
+        return [self.__weather]
 
 
 def get_weather_icon(day: Day):
     if day == Day.CLEAR:
-        return resources.get_image('weather-sunny')
+        return resources.get_image_tint('weather-sunny', 100)
     elif day == Day.CLOUDY:
         return resources.get_image('weather-cloudy')
     elif day == Day.RAINY or day == Day.LIGHTLY_RAINY:
@@ -80,51 +99,71 @@ def get_weather_icon(day: Day):
         return resources.get_image('weather-snowy-rainy')
 
 
-class WeatherView(VGroup):
-    def __init__(self, context: Context, prefer: ViewMeasurement, provider: WeatherProvider):
-        super().__init__(context, alignment=ViewAlignmentHorizontal.CENTER, prefer=prefer)
+class LargeWeatherView(HGroup):
+    def __init__(self, context: Context, provider: WeatherProvider,
+                 prefer: ViewMeasurement = ViewMeasurement.default()):
+        super().__init__(context, alignment=ViewAlignmentVertical.CENTER, prefer=prefer)
         self.__provider = provider
         self.__icon_view = None
-        self.___weather_label_view = None
-        self.__additional_label_view = None
+        self.__day_label_view = None
+        self.__subtitle_label_view = None
         self.refresh()
 
-
     def __get_detailed_label(self, weather: Weather):
-        return f'{self.__provider.get_location().friendly_name}\n' \
-               f'{weather.temperature}°C\n' \
-               f'{weather.humidity * 100}% humidity\n' \
-               f'{weather.temperature} hPa'
+        temp_unit = self.__provider.get_temperature_unit()
+        if temp_unit == TemperatureUnit.CELSIUS:
+            unit_str = '°C'
+        elif temp_unit == TemperatureUnit.FAHRENHEIT:
+            unit_str = '°F'
+        else:
+            unit_str = 'K'
+
+        return f'{weather.temperature} {unit_str}\n' \
+               f'{int(weather.humidity * 100)} %\n' \
+               f'{weather.pressure} hPa\n' \
+               f'{weather.uv_index} UV'
+
+    def __add_views(self, weather: Weather):
+        title_group = VGroup(self.context, alignment=ViewAlignmentHorizontal.RIGHT)
+        self.__icon_view = ImageView(self.context,
+                                     image=get_weather_icon(weather.day),
+                                     prefer=ViewMeasurement.default(
+                                         width=100,
+                                         height=100
+                                     ))
+        self.__day_label_view = TextView(self.context,
+                                         text=weather.day.name.capitalize(),
+                                         font=TextView.default_font_bold,
+                                         font_size=36)
+        self.__subtitle_label_view = TextView(self.context,
+                                              text=self.__get_detailed_label(weather),
+                                              font_size=20,
+                                              line_align=ViewAlignmentHorizontal.RIGHT)
+        self.add_views(
+            self.__icon_view,
+            Surface(self.context,
+                    prefer=ViewMeasurement.default(
+                        width=3,
+                        height=ViewSize.MATCH_PARENT,
+                        margin_right=4,
+                        margin_left=4,
+                    ),
+                    fill=0),
+            title_group
+        )
+        title_group.add_views(
+            self.__day_label_view,
+            self.__subtitle_label_view
+        )
 
     def refresh(self):
-        weather = self.__provider.get_weather()
+        weather = self.__provider.get_weather()[0]
 
         if self.__icon_view is None:
-            self.__icon_view = ImageView(self.context,
-                                         image=get_weather_icon(weather.day),
-                                         prefer=ViewMeasurement.default(
-                                             width=ViewSize.MATCH_PARENT,
-                                             height=64
-                                         ))
-            self.___weather_label_view = TextView(self.context,
-                                                  text=weather.day.name.capitalize(),
-                                                  font_size=36,
-                                                  prefer=ViewMeasurement.default(width=ViewSize.MATCH_PARENT),
-                                                  align_horizontal=ViewAlignmentHorizontal.CENTER)
-            self.__additional_label_view = TextView(self.context,
-                                                    text=self.__get_detailed_label(weather),
-                                                    align_horizontal=ViewAlignmentHorizontal.CENTER,
-                                                    line_align=ViewAlignmentHorizontal.CENTER,
-                                                    font_size=24,
-                                                    prefer=ViewMeasurement.default(width=ViewSize.MATCH_PARENT))
-            self.add_views(
-                self.__icon_view,
-                self.___weather_label_view,
-                self.__additional_label_view)
+            self.__add_views(weather)
         else:
             self.__icon_view.set_image(get_weather_icon(weather.day))
-            self.___weather_label_view.set_text(weather.day.name.capitalize())
-            self.__additional_label_view.set_text(self.__get_detailed_label(weather))
+            self.__day_label_view.set_text(self.__get_detailed_label(weather))
 
     def set_provider(self, provider: WeatherProvider):
         if self.__provider != provider:
