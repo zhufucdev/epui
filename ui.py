@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import numbers
 from enum import Enum
@@ -69,7 +70,6 @@ class Context:
     def start(self):
         self.__event_loop.name = 'event_loop'
         self.__event_loop.start()
-        self.__event_loop.join()
 
     def destroy(self):
         """
