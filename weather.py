@@ -1,8 +1,12 @@
-from enum import Enum
+import json
+
+import requests
 
 import resources
 from ui import VGroup, Context, ViewMeasurement, ViewAlignmentHorizontal, ImageView, ViewSize, TextView, HGroup, \
     Surface, ViewAlignmentVertical
+
+from enum import Enum
 import time as pytime
 from typing import *
 
@@ -24,6 +28,12 @@ class Day(Enum):
     LIGHTLY_SNOWY = 6
     SNOWY = 7
     HEAVILY_SNOWY = 8
+    HAZY = 9
+    FOGGY = 10
+    DUSTY = 11
+    SANDY = 12
+    WINDY = 13
+    UNKNOWN = 14
 
 
 class TemperatureUnit(Enum):
@@ -43,6 +53,11 @@ class Weather:
         """
         All these default parameters are for testing purpose, and
         should be set by the weather provider.
+        :param day: the sky-con
+        :param temperature: value of temperature, unit dependent on the provider
+        :param humidity: range from 0-1 in percentage
+        :param pressure: air pressure in hPa
+        :param uv_index: range from 0-10, aka ultraviolet index
         """
         self.time = time
         self.day = day
@@ -74,12 +89,76 @@ class WeatherProvider:
 
 class TestWeatherProvider(WeatherProvider):
     def __init__(self, weather: Weather):
-        location = Location(0, 0, 'Test Land')
         self.__weather = weather
+        location = Location(0, 0, 'Test Land')
         super().__init__(location, TemperatureUnit.CELSIUS)
 
     def get_weather(self) -> List[Weather]:
         return [self.__weather]
+
+
+class CaiYunWeatherProvider(WeatherProvider):
+    def __init__(self, location: Location, api_key: str):
+        super().__init__(location, TemperatureUnit.CELSIUS)
+        self.api_key = api_key
+
+    def __get_api_url(self):
+        return f'https://api.caiyunapp.com/v2.6/{self.api_key}/' \
+               f'{self.get_location().longitude},{self.get_location().latitude}'
+
+    @staticmethod
+    def __caiyun_get_day(raw: str) -> Day:
+        """
+        See https://docs.caiyunapp.com/docs/tables/skycon/ for full list
+        :param raw: caiyun's response
+        :return: my interface
+        """
+        raw = raw.lower()
+        if 'clear' in raw:
+            return Day.CLEAR
+        elif 'cloudy' in raw:
+            return Day.CLOUDY
+        elif 'haze' in raw:
+            return Day.HAZY
+        elif raw == 'light_rain':
+            return Day.LIGHTLY_RAINY
+        elif raw == 'moderate_rain':
+            return Day.RAINY
+        elif raw == 'heavy_rain' or raw == 'storm_rain':
+            return Day.HEAVILY_RAINY
+        elif raw == 'fog':
+            return Day.FOGGY
+        elif raw == 'light_snow':
+            return Day.LIGHTLY_SNOWY
+        elif raw == 'moderate_snow':
+            return Day.SNOWY
+        elif raw == 'heavy_snow' or raw == 'storm_snow':
+            return Day.HEAVILY_SNOWY
+        elif raw == 'dust':
+            return Day.DUSTY
+        elif raw == 'sand':
+            return Day.SANDY
+        elif raw == 'wind':
+            return Day.WINDY
+        else:
+            return Day.UNKNOWN
+
+    def get_weather(self) -> List[Weather]:
+        response = requests.get(self.__get_api_url() + '/realtime')
+        if not response.ok:
+            raise IOError('API not responding')
+
+        api_callback = json.loads(response.text)
+        result_realtime = api_callback['result']['realtime']
+        current_weather = Weather(
+            time=pytime.localtime(),
+            temperature=result_realtime['temperature'],
+            day=self.__caiyun_get_day(result_realtime['skycon']),
+            humidity=result_realtime['humidity'],
+            pressure=result_realtime['pressure'] / 100,
+            uv_index=int(result_realtime['life_index']['ultraviolet']['index'])
+        )
+        return [current_weather]
 
 
 def get_weather_icon(day: Day):
@@ -97,6 +176,16 @@ def get_weather_icon(day: Day):
         return resources.get_image('weather-snowy-heavy')
     elif day == Day.SNOWY_RAINY:
         return resources.get_image('weather-snowy-rainy')
+    elif day == Day.WINDY:
+        return resources.get_image('weather-windy')
+    elif day == Day.HAZY:
+        return resources.get_image('weather-hazy')
+    elif day == Day.FOGGY:
+        return resources.get_image('weather-fog')
+    elif day == Day.DUSTY:
+        return resources.get_image('weather-dust')
+    else:
+        return resources.get_image('weather-alert')
 
 
 class LargeWeatherView(HGroup):
@@ -120,7 +209,7 @@ class LargeWeatherView(HGroup):
 
         return f'{weather.temperature} {unit_str}\n' \
                f'{int(weather.humidity * 100)} %\n' \
-               f'{weather.pressure} hPa\n' \
+               f'{int(weather.pressure)} hPa\n' \
                f'{weather.uv_index} UV'
 
     def __add_views(self, weather: Weather):
