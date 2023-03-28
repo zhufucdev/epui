@@ -1,3 +1,4 @@
+import math
 import numbers
 from enum import Enum
 from typing import *
@@ -215,7 +216,8 @@ def draw_bezier_curve(
     if y.max == y.min:
         draw_straight_line(canvas, bounds, config, data, fill, width)
 
-    def manipulate(t: float, p0: Tuple[float, float], p1: Tuple[float, float], pos: str = 'm') -> Tuple[int, int]:
+    def manipulate_head_rear(t: float, p0: Tuple[float, float], p1: Tuple[float, float],
+                             helper_slopes: List[float | None], pos: str = 'm') -> Tuple[int, int]:
         u = 1 - t
         if pos == 's':
             pc1 = (p0[0], p0[1] * 0.8 + p1[1] * 0.2)
@@ -227,6 +229,15 @@ def draw_bezier_curve(
             pc1 = (p0[0] * 0.8 + p1[0] * 0.2, p0[1])
             pc2 = (p0[0] * 0.2 + p1[0] * 0.8, p1[1])
 
+        if helper_slopes is not None:
+            r = min(bounds[0], bounds[1]) / 3
+            if helper_slopes[0] is not None:
+                u0 = math.sqrt(r / (1 + helper_slopes[0] ** 2))
+                pc1 = (p0[0] + u0, helper_slopes[0] * u0 + p0[1])
+            if helper_slopes[1] is not None:
+                u1 = math.sqrt(r / (1 + helper_slopes[1] ** 2))
+                pc2 = (p1[0] - u1, helper_slopes[1] * u1 + p1[1])
+
         result = util.multiply(p0, u * u * u)
         result = util.plus(result, util.multiply(pc1, 3 * u * u * t))
         result = util.plus(result, util.multiply(pc2, 3 * u * t * t))
@@ -236,49 +247,75 @@ def draw_bezier_curve(
     cache = {
         'last_index': 0
     }
+
+    def get_helper_slope(index: int) -> float:
+        return (data[index - 1][1] - data[index + 1][1]) / (data[index - 1][0] - data[index + 1][0])
+
     if isinstance(data[0][0], numbers.Number):
         x_len = config.x_axis.max - config.x_axis.min
+
         y_len = config.y_axis.max - config.y_axis.min
 
         def map_to_canvas(point: Tuple[float, float]) -> Tuple[float, float]:
-            return (point[0] - config.x_axis.min) / x_len * bounds[0], \
-                   (config.y_axis.max - point[1]) / y_len * bounds[1]
+            return (point[0] - config.x_axis.min) / x_len * (bounds[0] - 10) + 5, \
+                   (config.y_axis.max - point[1]) / y_len * (bounds[1] - 10) + 5
 
         def iterate(t: float) -> Tuple[int, int]:
             _x = x_len * t + config.x_axis.min
             for i in range(cache['last_index'], len(data) - 1):
                 if data[i][0] <= _x < data[i + 1][0]:
                     cache['last_index'] = i
+
+                    helper_slope = [None, None]
+
                     if i == 0:
                         pos = 's'
-                    elif i == len(data) - 2:
+                        if len(data) >= 3:
+                            helper_slope[1] = get_helper_slope(i + 1)
+                    elif i >= len(data) - 2:
                         pos = 'e'
+                        if len(data) >= 3:
+                            helper_slope[1] = get_helper_slope(i - 1)
                     else:
                         pos = 'm'
-                    return manipulate((_x - data[i][0]) / (data[i + 1][0] - data[i][0]),
-                                      map_to_canvas(data[i]), map_to_canvas(data[i + 1]), pos)
+                        helper_slope[0] = get_helper_slope(i - 1)
+                        helper_slope[1] = get_helper_slope(i)
+
+                    return manipulate_head_rear(
+                        (_x - data[i][0]) / (data[i + 1][0] - data[i][0]),
+                        map_to_canvas(data[i]), map_to_canvas(data[i + 1]),
+                        helper_slope, pos)
     else:
         segment = 1 / (len(data) - 1)
         y_len = config.y_axis.max - config.y_axis.min
 
         def map_to_canvas(point: Tuple[int, float]) -> Tuple[float, float]:
-            return point[0] / (len(data) - 1) * bounds[0], (config.y_axis.max - point[1]) / y_len * bounds[1]
+            return point[0] / (len(data) - 1) * (bounds[0] - 10) + 5, \
+                   (config.y_axis.max - point[1]) / y_len * (bounds[1] - 10) + 5
 
         def iterate(t: float) -> Tuple[int, int]:
             u = t % segment / segment
-            _x = int(t * (len(data) - 1))
-            if _x == 0:
+            i = int(t * (len(data) - 1))
+            helper_slope = [None, None]
+            if i == 0:
                 pos = 's'
-            elif _x >= len(data) - 2:
+                if len(data) >= 3:
+                    helper_slope[1] = get_helper_slope(i + 1)
+            elif i >= len(data) - 2:
                 pos = 'e'
-                if _x >= len(data) - 1:
-                    _x = len(data) - 2
+                if i >= len(data) - 1:
+                    i = len(data) - 2
+                if len(data) >= 3:
+                    helper_slope[1] = get_helper_slope(i - 1)
             else:
                 pos = 'm'
-            return manipulate(u, map_to_canvas((_x, data[_x][1])), map_to_canvas((_x + 1, data[_x + 1][1])), pos)
+                helper_slope[0] = get_helper_slope(i - 1)
+                helper_slope[1] = get_helper_slope(i)
+            return manipulate_head_rear(u, map_to_canvas((i, data[i][1])), map_to_canvas((i + 1, data[i + 1][1])),
+                                        helper_slope, pos)
 
     canvas.line(
-        xy=[iterate(i / bounds[0]) for i in range(0, bounds[0])],
+        xy=[iterate(i / bounds[0] / 4) for i in range(bounds[0] * 4)],
         width=width,
         fill=fill
     )
@@ -339,11 +376,12 @@ class TrendChartsView(ChartsView):
         self.invalidate()
 
     def draw_body(self, canvas: ImageDraw.ImageDraw, bounds: Tuple[int, int], scale: float):
-        font = ImageFont.truetype(ui.TextView.default_font, size=24 * scale)
+        font = ImageFont.truetype(ui.TextView.default_font, size=16 * scale)
         title_bounds = canvas.textbbox((0, 0), self.get_configuration().title, font=font)
         canvas.text(
             xy=(int((bounds[0] - title_bounds[2]) / 2), bounds[1] - title_bounds[3] - int(3 * scale)),
             font=font,
+            fill=0,
             text=self.get_configuration().title,
         )
         if View.draw_bounds_box:
