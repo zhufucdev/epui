@@ -1,3 +1,4 @@
+import datetime
 import json
 
 import requests
@@ -5,6 +6,7 @@ import requests
 import resources
 from ui import VGroup, Context, ViewMeasurement, ViewAlignmentHorizontal, ImageView, ViewSize, TextView, HGroup, \
     Surface, ViewAlignmentVertical
+from charts import TrendChartsView, ChartsLineType
 
 from enum import Enum
 import time as pytime
@@ -42,9 +44,16 @@ class TemperatureUnit(Enum):
     KELVIN = 2
 
 
+class WeatherEffectiveness(Enum):
+    CURRENT = 0
+    HOURLY = 1
+    DAILY = 2
+
+
 class Weather:
     def __init__(self,
-                 time: Tuple = pytime.localtime(),
+                 time: pytime.struct_time = pytime.localtime(),
+                 effect: WeatherEffectiveness = WeatherEffectiveness.CURRENT,
                  day: Day = Day.CLEAR,
                  temperature: float = 22,
                  humidity: float = 0.2,
@@ -54,12 +63,14 @@ class Weather:
         All these default parameters are for testing purpose, and
         should be set by the weather provider.
         :param day: the sky-con
+        :param effect: role this weather data's playing
         :param temperature: value of temperature, unit dependent on the provider
         :param humidity: range from 0-1 in percentage
         :param pressure: air pressure in hPa
         :param uv_index: range from 0-10, aka ultraviolet index
         """
         self.time = time
+        self.effect = effect
         self.day = day
         self.temperature = temperature
         self.humidity = humidity
@@ -87,6 +98,26 @@ class WeatherProvider:
         pass
 
 
+class CachedWeatherProvider(WeatherProvider):
+    def __init__(self, location: Location, temperature_unit: TemperatureUnit, cache_invalidate_interval: float = 3600):
+        super().__init__(location, temperature_unit)
+        self.cache_invalidation = cache_invalidate_interval
+        self.__update_time = None
+        self.__cache = None
+
+    def invalidate(self) -> List[Weather]:
+        pass
+
+    def get_weather(self):
+        if self.__update_time is not None \
+                and pytime.time() - self.__update_time < self.cache_invalidation:
+            return self.__cache
+        self.__update_time = pytime.time()
+        new_data = self.invalidate()
+        self.__cache = new_data
+        return new_data
+
+
 class TestWeatherProvider(WeatherProvider):
     def __init__(self, weather: Weather):
         self.__weather = weather
@@ -97,9 +128,9 @@ class TestWeatherProvider(WeatherProvider):
         return [self.__weather]
 
 
-class CaiYunWeatherProvider(WeatherProvider):
-    def __init__(self, location: Location, api_key: str):
-        super().__init__(location, TemperatureUnit.CELSIUS)
+class CaiYunWeatherProvider(CachedWeatherProvider):
+    def __init__(self, location: Location, api_key: str, cache_invalidate_interval: float = 3600):
+        super().__init__(location, TemperatureUnit.CELSIUS, cache_invalidate_interval)
         self.api_key = api_key
 
     def __get_api_url(self):
@@ -143,22 +174,60 @@ class CaiYunWeatherProvider(WeatherProvider):
         else:
             return Day.UNKNOWN
 
-    def get_weather(self) -> List[Weather]:
-        response = requests.get(self.__get_api_url() + '/realtime')
+    def invalidate(self) -> List[Weather]:
+        response = requests.get(self.__get_api_url() + '/weather?dailysteps=3&hourlysteps=24&minutely=false')
         if not response.ok:
-            raise IOError('API not responding')
+            raise IOError('Realtime API not responding')
 
         api_callback = json.loads(response.text)
         result_realtime = api_callback['result']['realtime']
+        result_hourly = api_callback['result']['hourly']
+        result_daily = api_callback['result']['daily']
         current_weather = Weather(
             time=pytime.localtime(),
+            effect=WeatherEffectiveness.CURRENT,
             temperature=result_realtime['temperature'],
             day=self.__caiyun_get_day(result_realtime['skycon']),
             humidity=result_realtime['humidity'],
             pressure=result_realtime['pressure'] / 100,
             uv_index=int(result_realtime['life_index']['ultraviolet']['index'])
         )
-        return [current_weather]
+        hourly_weather = []
+        daily_weather = []
+
+        def parse(target_set: List[Weather], source: Dict, effect: WeatherEffectiveness):
+            def pick(unit: Dict):
+                if 'value' in unit:
+                    return unit['value']
+                elif 'avg' in unit:
+                    return unit['avg']
+                else:
+                    raise ValueError(unit)
+
+            for i in range(len(source['precipitation'])):
+                precipitation = source['precipitation'][i]
+                if 'datetime' in precipitation:
+                    time = datetime.datetime.fromisoformat(precipitation['datetime']).timetuple()
+                elif 'date' in precipitation:
+                    time = datetime.datetime.fromisoformat(precipitation['date']).timetuple()
+                else:
+                    raise ValueError(precipitation)
+
+                temperature = pick(source['temperature'][i])
+                humidity = pick(source['humidity'][i])
+                sky_con = pick(source['skycon'][i])
+                pressure = pick(source['pressure'][i])
+                target_set.append(
+                    Weather(
+                        time, effect, self.__caiyun_get_day(sky_con),
+                        temperature, humidity, pressure, -1
+                    )
+                )
+
+        parse(hourly_weather, result_hourly, WeatherEffectiveness.HOURLY)
+        parse(daily_weather, result_daily, WeatherEffectiveness.DAILY)
+
+        return [current_weather] + hourly_weather + daily_weather
 
 
 def get_weather_icon(day: Day):
@@ -246,7 +315,8 @@ class LargeWeatherView(HGroup):
         )
 
     def refresh(self):
-        weather = self.__provider.get_weather()[0]
+        weather = next(weather for weather in self.__provider.get_weather()
+                       if weather.effect == WeatherEffectiveness.CURRENT)
 
         if self.__icon_view is None:
             self.__add_views(weather)
@@ -258,3 +328,27 @@ class LargeWeatherView(HGroup):
         if self.__provider != provider:
             self.__provider = provider
             self.invalidate()
+
+
+class WeatherTrendView(TrendChartsView):
+    def __init__(self, context: Context,
+                 title: str, provider: WeatherProvider,
+                 effect: WeatherEffectiveness,
+                 value: Callable[[Weather], float],
+                 prefer: ViewMeasurement = ViewMeasurement.default()):
+        super().__init__(context, title, [], line_type=ChartsLineType.BEZIER_CURVE, prefer=prefer)
+        self.__provider = provider
+        self.__effect = effect
+        self.__value = value
+        self.refresh()
+
+    @staticmethod
+    def label(w: Weather) -> int:
+        current_time = pytime.localtime()
+        return w.time.tm_hour - current_time.tm_hour + 24 * (w.time.tm_yday - current_time.tm_yday) + \
+            365 * (w.time.tm_year - current_time.tm_year)
+
+    def refresh(self):
+        data = [(self.label(w), self.__value(w)) for w in self.__provider.get_weather()
+                if w.effect == self.__effect]
+        self.set_data(data)
