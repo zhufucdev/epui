@@ -157,7 +157,7 @@ ChartData = List[Tuple[IndependentVar, DependentVar]]
 
 def update_axis_bounds(data: ChartData, y_axis: Axis, x_axis: Axis):
     y_axis.min = data[0][1]
-    y_axis.max = x_axis.min
+    y_axis.max = y_axis.min
     for i in range(1, len(data)):
         y_axis.min = min(y_axis.min, data[i][1])
         y_axis.max = max(y_axis.max, data[i][1])
@@ -216,15 +216,15 @@ def draw_bezier_curve(
     if y.max == y.min:
         draw_straight_line(canvas, bounds, config, data, fill, width)
 
-    def manipulate_head_rear(t: float, p0: Tuple[float, float], p1: Tuple[float, float],
-                             helper_slopes: List[float | None], pos: str = 'm') -> Tuple[int, int]:
+    def manipulate(t: float, p0: Tuple[float, float], p1: Tuple[float, float],
+                   helper_slopes: List[float | None], pos: str = 'm') -> Tuple[int, int]:
         u = 1 - t
         if pos == 's':
-            pc1 = (p0[0], p0[1] * 0.8 + p1[1] * 0.2)
+            pc1 = (p0[0] * 0.8 + p1[0] * 0.2, p0[1] * 0.8 + p1[1] * 0.2)
             pc2 = (p0[0] * 0.2 + p1[0] * 0.8, p1[1])
         elif pos == 'e':
             pc1 = (p0[0] * 0.8 + p1[0] * 0.2, p0[1])
-            pc2 = (p1[0], p0[1] * 0.2 + p1[1] * 0.8)
+            pc2 = (p1[0] * 0.8 + p0[0] * 0.2, p0[1] * 0.2 + p1[1] * 0.8)
         else:
             pc1 = (p0[0] * 0.8 + p1[0] * 0.2, p0[1])
             pc2 = (p0[0] * 0.2 + p1[0] * 0.8, p1[1])
@@ -232,11 +232,15 @@ def draw_bezier_curve(
         if helper_slopes is not None:
             r = min(bounds[0], bounds[1]) / 3
             if helper_slopes[0] is not None:
-                u0 = math.sqrt(r / (1 + helper_slopes[0] ** 2))
+                u0 = math.sqrt(r ** 2 / (1 + helper_slopes[0] ** 2))
                 pc1 = (p0[0] + u0, helper_slopes[0] * u0 + p0[1])
             if helper_slopes[1] is not None:
-                u1 = math.sqrt(r / (1 + helper_slopes[1] ** 2))
-                pc2 = (p1[0] - u1, helper_slopes[1] * u1 + p1[1])
+                u1 = math.sqrt(r ** 2 / (1 + helper_slopes[1] ** 2))
+                pc2 = (p1[0] - u1, -helper_slopes[1] * u1 + p1[1])
+
+        if View.draw_bounds_box:
+            canvas.line((pc1, p0), fill=125, width=4)
+            canvas.line((pc2, p1), fill=0, width=4)
 
         result = util.multiply(p0, u * u * u)
         result = util.plus(result, util.multiply(pc1, 3 * u * u * t))
@@ -248,8 +252,9 @@ def draw_bezier_curve(
         'last_index': 0
     }
 
-    def get_helper_slope(index: int) -> float:
-        return (data[index - 1][1] - data[index + 1][1]) / (data[index - 1][0] - data[index + 1][0])
+    def get_helper_slope(index: int, mapper: Callable[[Tuple], Tuple]) -> float:
+        mapped = mapper(data[index - 1]), mapper(data[index + 1])
+        return (mapped[0][1] - mapped[1][1]) / (mapped[0][0] - mapped[1][0])
 
     if isinstance(data[0][0], numbers.Number):
         x_len = config.x_axis.max - config.x_axis.min
@@ -257,8 +262,8 @@ def draw_bezier_curve(
         y_len = config.y_axis.max - config.y_axis.min
 
         def map_to_canvas(point: Tuple[float, float]) -> Tuple[float, float]:
-            return (point[0] - config.x_axis.min) / x_len * (bounds[0] - 10) + 5, \
-                   (config.y_axis.max - point[1]) / y_len * (bounds[1] - 10) + 5
+            return (point[0] - config.x_axis.min) / x_len * (bounds[0] - 20) + 10, \
+                   (config.y_axis.max - point[1]) / y_len * (bounds[1] - 20) + 10
 
         def iterate(t: float) -> Tuple[int, int]:
             _x = x_len * t + config.x_axis.min
@@ -271,17 +276,17 @@ def draw_bezier_curve(
                     if i == 0:
                         pos = 's'
                         if len(data) >= 3:
-                            helper_slope[1] = get_helper_slope(i + 1)
+                            helper_slope[1] = get_helper_slope(i + 1, map_to_canvas)
                     elif i >= len(data) - 2:
                         pos = 'e'
                         if len(data) >= 3:
-                            helper_slope[1] = get_helper_slope(i - 1)
+                            helper_slope[0] = get_helper_slope(i, map_to_canvas)
                     else:
                         pos = 'm'
-                        helper_slope[0] = get_helper_slope(i - 1)
-                        helper_slope[1] = get_helper_slope(i)
+                        helper_slope[0] = get_helper_slope(i, map_to_canvas)
+                        helper_slope[1] = get_helper_slope(i + 1, map_to_canvas)
 
-                    return manipulate_head_rear(
+                    return manipulate(
                         (_x - data[i][0]) / (data[i + 1][0] - data[i][0]),
                         map_to_canvas(data[i]), map_to_canvas(data[i + 1]),
                         helper_slope, pos)
@@ -290,8 +295,8 @@ def draw_bezier_curve(
         y_len = config.y_axis.max - config.y_axis.min
 
         def map_to_canvas(point: Tuple[int, float]) -> Tuple[float, float]:
-            return point[0] / (len(data) - 1) * (bounds[0] - 10) + 5, \
-                   (config.y_axis.max - point[1]) / y_len * (bounds[1] - 10) + 5
+            return point[0] / (len(data) - 1) * (bounds[0] - 20) + 10, \
+                   (config.y_axis.max - point[1]) / y_len * (bounds[1] - 20) + 10
 
         def iterate(t: float) -> Tuple[int, int]:
             u = t % segment / segment
@@ -300,19 +305,20 @@ def draw_bezier_curve(
             if i == 0:
                 pos = 's'
                 if len(data) >= 3:
-                    helper_slope[1] = get_helper_slope(i + 1)
+                    helper_slope[1] = get_helper_slope(i + 1, map_to_canvas)
             elif i >= len(data) - 2:
                 pos = 'e'
                 if i >= len(data) - 1:
                     i = len(data) - 2
                 if len(data) >= 3:
-                    helper_slope[1] = get_helper_slope(i - 1)
+                    helper_slope[0] = get_helper_slope(i, map_to_canvas)
             else:
                 pos = 'm'
-                helper_slope[0] = get_helper_slope(i - 1)
-                helper_slope[1] = get_helper_slope(i)
-            return manipulate_head_rear(u, map_to_canvas((i, data[i][1])), map_to_canvas((i + 1, data[i + 1][1])),
-                                        helper_slope, pos)
+                helper_slope[0] = get_helper_slope(i, map_to_canvas)
+                helper_slope[1] = get_helper_slope(i + 1, map_to_canvas)
+            return manipulate(u, map_to_canvas((i, data[i][1])),
+                              map_to_canvas((i + 1, data[i + 1][1])),
+                              helper_slope, pos)
 
     canvas.line(
         xy=[iterate(i / bounds[0] / 4) for i in range(bounds[0] * 4)],
