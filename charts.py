@@ -152,7 +152,9 @@ class ChartsView(View):
 
 IndependentVar = int | float | str
 DependentVar = int | float
-ChartData = List[Tuple[IndependentVar, DependentVar]]
+ChartTuple = Tuple[IndependentVar, DependentVar]
+ChartData = List[ChartTuple]
+DrawResult = List[Tuple[Tuple[int, int], ChartTuple]]
 
 
 def update_axis_bounds(data: ChartData, y_axis: Axis, x_axis: Axis):
@@ -177,33 +179,38 @@ def draw_straight_line(
         bounds: Tuple[int, int],
         config: ChartsConfiguration,
         data: ChartData,
-        fill: int, width: int, ):
+        fill: int, width: int) -> DrawResult:
     x_axis, y_axis = config.x_axis, config.y_axis
     y_len = y_axis.max - y_axis.min
     if y_len == 0:
+        y_center = int(bounds[1] / 2)
         canvas.line(
-            xy=[(0, int(bounds[1] / 2)), (bounds[0], int(bounds[1] / 2))],
+            xy=[(0, y_center), (bounds[0], y_center)],
             fill=fill,
             width=width
         )
-        return
+        return [((int(x / len(data) * bounds[0]), y_center), data[x]) for x in range(len(data))]
 
     if isinstance(data[0][0], numbers.Number):
         x_len = x_axis.max - x_axis.min
+        points = [(int((data[0] - x_axis.min) / x_len * bounds[0]), int(bounds[1] * (y_axis.max - data[1]) / y_len))
+                  for data in data]
         canvas.line(
-            xy=[(int((data[0] - x_axis.min) / x_len * bounds[0]), int(bounds[1] * (y_axis.max - data[1]) / y_len))
-                for data in data],
+            xy=points,
             fill=fill,
             width=width
         )
+        return [(points[i], data[i]) for i in range(len(points))]
     else:
         x_segment = bounds[0] / (len(data) - 1)
+        points = [(int(i * x_segment), int(bounds[1] * (y_axis.max - data[i][1]) / y_len))
+                  for i in range(0, len(data))]
         canvas.line(
-            xy=[(int(i * x_segment), int(bounds[1] * (y_axis.max - data[i][1]) / y_len))
-                for i in range(0, len(data))],
+            xy=points,
             fill=fill,
             width=width
         )
+        return [(points[i], data[i]) for i in range(len(points))]
 
 
 def draw_bezier_curve(
@@ -211,10 +218,10 @@ def draw_bezier_curve(
         bounds: Tuple[int, int],
         config: ChartsConfiguration,
         data: ChartData,
-        fill: int, width: int):
+        fill: int, width: int) -> DrawResult:
     x, y = config.x_axis, config.y_axis
     if y.max == y.min:
-        draw_straight_line(canvas, bounds, config, data, fill, width)
+        return draw_straight_line(canvas, bounds, config, data, fill, width)
 
     def manipulate(t: float, p0: Tuple[float, float], p1: Tuple[float, float],
                    helper_slopes: List[float | None], pos: str = 'm') -> Tuple[int, int]:
@@ -230,7 +237,7 @@ def draw_bezier_curve(
             pc2 = (p0[0] * 0.2 + p1[0] * 0.8, p1[1])
 
         if helper_slopes is not None:
-            r = min(bounds[0], bounds[1]) / 3
+            r = bounds[1] / len(data) * 2
             if helper_slopes[0] is not None:
                 u0 = math.sqrt(r ** 2 / (1 + helper_slopes[0] ** 2))
                 pc1 = (p0[0] + u0, helper_slopes[0] * u0 + p0[1])
@@ -290,6 +297,8 @@ def draw_bezier_curve(
                         (_x - data[i][0]) / (data[i + 1][0] - data[i][0]),
                         map_to_canvas(data[i]), map_to_canvas(data[i + 1]),
                         helper_slope, pos)
+
+        points = [(util.int_vector(map_to_canvas(p)), p) for p in data]
     else:
         segment = 1 / (len(data) - 1)
         y_len = config.y_axis.max - config.y_axis.min
@@ -325,11 +334,14 @@ def draw_bezier_curve(
                               map_to_canvas((i + 1, data[i + 1][1])),
                               helper_slope, pos)
 
+        points = [(util.int_vector(map_to_canvas((x, data[x][1]))), data[x]) for x in range(len(data))]
+
     canvas.line(
         xy=[iterate(i / bounds[0] / 4) for i in range(bounds[0] * 4)],
         width=width,
         fill=fill
     )
+    return points
 
 
 class ChartsLineType(Enum):
@@ -386,6 +398,10 @@ class TrendChartsView(ChartsView):
         self.__data = data
         self.invalidate()
 
+    def draw_label(self, canvas: ImageDraw.ImageDraw, bounds: Tuple[int, int],
+                   point: Tuple[Tuple[int, int], ChartTuple], scale: float):
+        pass
+
     def draw_body(self, canvas: ImageDraw.ImageDraw, bounds: Tuple[int, int], scale: float):
         font = ImageFont.truetype(ui.TextView.default_font, size=16 * scale)
         title_bounds = canvas.textbbox((0, 0), self.get_configuration().title, font=font)
@@ -403,8 +419,10 @@ class TrendChartsView(ChartsView):
 
         update_axis_bounds(self.__data, y_axis, x_axis)
         if self.__line_type == ChartsLineType.STRAIGHT:
-            draw_straight_line(canvas, bounds, self.get_configuration(), self.__data,
-                               self.__line_fill, int(self.__line_width * scale))
+            points = draw_straight_line(canvas, bounds, self.get_configuration(), self.__data,
+                                        self.__line_fill, int(self.__line_width * scale))
         else:
-            draw_bezier_curve(canvas, bounds, self.get_configuration(), self.__data,
-                              self.__line_fill, int(self.__line_width * scale))
+            points = draw_bezier_curve(canvas, bounds, self.get_configuration(), self.__data,
+                                       self.__line_fill, int(self.__line_width * scale))
+        for p in points:
+            self.draw_label(canvas, bounds, p, scale)
