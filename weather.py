@@ -487,7 +487,7 @@ class WeatherTrendView(TrendChartsView):
             view_canvas = Image.new('L', content_size, color=COLOR_TRANSPARENT)
             canvas_draw = ImageDraw.Draw(view_canvas)
             view.draw(canvas_draw, scale)
-            overlay(canvas._image, view_canvas, (int(i * span + 10 + span / 2 - content_size[1] / 2), 10))
+            overlay(canvas._image, view_canvas, (int(i * span + 20 + span / 2 - content_size[1] / 2), 10))
 
     def refresh(self):
         data = [(self.label(w), self.__value(w)) for w in self.__provider.get_weather()
