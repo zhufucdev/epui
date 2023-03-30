@@ -1,12 +1,13 @@
 import datetime
 import json
+from functools import cache
 
 import requests
 
 import resources
 from ui import VGroup, Context, ViewMeasurement, ViewAlignmentHorizontal, ImageView, ViewSize, TextView, HGroup, \
-    Surface, ViewAlignmentVertical
-from charts import TrendChartsView, ChartsLineType
+    Surface, ViewAlignmentVertical, ImageDraw, Image, COLOR_TRANSPARENT, overlay
+from charts import TrendChartsView, ChartsLineType, ChartsConfiguration, Axis, AxisPosition
 
 from enum import Enum
 import time as pytime
@@ -48,6 +49,7 @@ class WeatherEffectiveness(Enum):
     CURRENT = 0
     HOURLY = 1
     DAILY = 2
+    ANY = 3
 
 
 class Weather:
@@ -118,7 +120,7 @@ class CachedWeatherProvider(WeatherProvider):
         return new_data
 
 
-class TestWeatherProvider(WeatherProvider):
+class DirectWeatherProvider(WeatherProvider):
     def __init__(self, weather: Weather):
         self.__weather = weather
         location = Location(0, 0, 'Test Land')
@@ -257,26 +259,48 @@ def get_weather_icon(day: Day):
         return resources.get_image('weather-alert')
 
 
+def get_day_name(day: Day):
+    return day.name.replace('_', ' ').capitalize()
+
+def get_unit_name(unit: TemperatureUnit):
+    if unit == TemperatureUnit.CELSIUS:
+        return '°C'
+    elif unit == TemperatureUnit.FAHRENHEIT:
+        return '°F'
+    else:
+        return 'K'
+
+
 class LargeWeatherView(HGroup):
     def __init__(self, context: Context, provider: WeatherProvider,
+                 effect: WeatherEffectiveness = WeatherEffectiveness.CURRENT,
                  prefer: ViewMeasurement = ViewMeasurement.default()):
         super().__init__(context, alignment=ViewAlignmentVertical.CENTER, prefer=prefer)
         self.__provider = provider
+        self.__effect = effect
         self.__icon_view = None
         self.__day_label_view = None
         self.__subtitle_label_view = None
         self.refresh()
 
-    def __get_detailed_label(self, weather: Weather):
-        temp_unit = self.__provider.get_temperature_unit()
-        if temp_unit == TemperatureUnit.CELSIUS:
-            unit_str = '°C'
-        elif temp_unit == TemperatureUnit.FAHRENHEIT:
-            unit_str = '°F'
-        else:
-            unit_str = 'K'
+    def get_provider(self):
+        return self.__provider
 
-        return f'{weather.temperature} {unit_str}\n' \
+    def set_provider(self, provider: WeatherProvider):
+        if self.__provider != provider:
+            self.__provider = provider
+            self.refresh()
+
+    def get_effect(self):
+        return self.__effect
+
+    def set_effect(self, effect: WeatherEffectiveness):
+        if self.__effect != effect:
+            self.__effect = effect
+            self.refresh()
+
+    def __get_detailed_label(self, weather: Weather):
+        return f'{weather.temperature} {get_unit_name(self.__provider.get_temperature_unit())}\n' \
                f'{int(weather.humidity * 100)} %\n' \
                f'{int(weather.pressure)} hPa\n' \
                f'{weather.uv_index} UV'
@@ -290,7 +314,7 @@ class LargeWeatherView(HGroup):
                                          height=100
                                      ))
         self.__day_label_view = TextView(self.context,
-                                         text=weather.day.name.capitalize(),
+                                         text=get_day_name(weather.day),
                                          font=TextView.default_font_bold,
                                          font_size=36)
         self.__subtitle_label_view = TextView(self.context,
@@ -316,27 +340,92 @@ class LargeWeatherView(HGroup):
 
     def refresh(self):
         weather = next(weather for weather in self.__provider.get_weather()
-                       if weather.effect == WeatherEffectiveness.CURRENT)
+                       if weather.effect == self.__effect)
 
         if self.__icon_view is None:
             self.__add_views(weather)
         else:
             self.__icon_view.set_image(get_weather_icon(weather.day))
-            self.__day_label_view.set_text(self.__get_detailed_label(weather))
+            self.__day_label_view.set_text(get_day_name(weather.day))
+            self.__subtitle_label_view.set_text(self.__get_detailed_label(weather))
+
+        self.invalidate()
+
+
+class MiniWeatherView(VGroup):
+    def __init__(self, context: Context, provider: WeatherProvider,
+                 effect: WeatherEffectiveness = WeatherEffectiveness.CURRENT,
+                 prefer: ViewMeasurement = ViewMeasurement.default()):
+        self.__provider = provider
+        self.__effect = effect
+        self.__icon_view = None
+        self.__label = None
+        super().__init__(context, ViewAlignmentHorizontal.CENTER, prefer)
+        self.refresh()
+
+    def get_provider(self):
+        return self.__provider
 
     def set_provider(self, provider: WeatherProvider):
         if self.__provider != provider:
             self.__provider = provider
-            self.invalidate()
+            self.refresh()
+
+    def get_effect(self):
+        return self.__effect
+
+    def set_effect(self, effect: WeatherEffectiveness):
+        if self.__effect != effect:
+            self.__effect = effect
+            self.refresh()
+
+    def __get_label(self, weather: Weather) -> str:
+        return f'{get_day_name(weather.day)}\n' \
+               f'{weather.temperature} {get_unit_name(self.__provider.get_temperature_unit())}'
+
+    def __add_views(self, weather: Weather):
+        self.__icon_view = ImageView(
+            self.context,
+            image=get_weather_icon(weather.day),
+            prefer=ViewMeasurement.default(width=32, height=32)
+        )
+        self.__label = TextView(
+            self.context,
+            text=self.__get_label(weather),
+            line_align=ViewAlignmentHorizontal.CENTER
+        )
+        self.add_views(self.__icon_view, self.__label)
+
+    def refresh(self):
+        weather = next(w for w in self.__provider.get_weather()
+                       if self.__effect == WeatherEffectiveness.ANY or w.effect == self.__effect)
+        if self.__icon_view is None:
+            self.__add_views(weather)
+        else:
+            self.__icon_view = get_weather_icon(weather.day)
+            self.__label = get_day_name(weather.day)
 
 
 class WeatherTrendView(TrendChartsView):
     def __init__(self, context: Context,
-                 title: str, provider: WeatherProvider,
-                 effect: WeatherEffectiveness,
+                 title: str, provider: WeatherProvider, effect: WeatherEffectiveness,
                  value: Callable[[Weather], float],
-                 prefer: ViewMeasurement = ViewMeasurement.default()):
-        super().__init__(context, title, [], line_type=ChartsLineType.BEZIER_CURVE, prefer=prefer)
+                 line_fill: int = 0, line_width: float = 2,
+                 prefer: ViewMeasurement = ViewMeasurement.default(),
+                 line_type: ChartsLineType = ChartsLineType.BEZIER_CURVE):
+        super().__init__(
+            context,
+            data=[],
+            line_width=line_width,
+            line_fill=line_fill,
+            line_type=line_type,
+            prefer=prefer,
+            configuration=ChartsConfiguration(
+                title=title,
+                x_axis=Axis(position=AxisPosition.BOTTOM, label=''),
+                y_axis=Axis.disabled()
+            )
+        )
         self.__provider = provider
         self.__effect = effect
         self.__value = value
@@ -348,7 +437,59 @@ class WeatherTrendView(TrendChartsView):
         return w.time.tm_hour - current_time.tm_hour + 24 * (w.time.tm_yday - current_time.tm_yday) + \
             365 * (w.time.tm_year - current_time.tm_year)
 
+    @cache
+    def __get_icon_sample(self) -> MiniWeatherView | None:
+        weather = (w for w in self.__provider.get_weather()
+                   if self.__effect == WeatherEffectiveness.ANY or w.effect == self.__effect)
+        try:
+            w = next(weather)
+        except:
+            return
+
+        return self.__get_icon_view(w)
+
+    def __get_icon_view(self, weather: Weather):
+        view = MiniWeatherView(
+            self.context, DirectWeatherProvider(weather),
+            effect=WeatherEffectiveness.ANY
+        )
+        size = view.content_size()
+        view.actual_measurement = ViewMeasurement.default(
+            width=size[0],
+            height=size[1]
+        )
+        return view
+
+    def x_axis_size(self) -> float:
+        sample = self.__get_icon_sample()
+        if sample is None:
+            return 0
+        return sample.content_size()[1] + 10
+
+    def draw_x_axis(self, canvas: ImageDraw.ImageDraw, bounds: Tuple[int, int], scale: float):
+        sample_size = self.__get_icon_sample()
+        if sample_size is None:
+            return
+        sample_size = sample_size.content_size()
+        canvas.line(((0, self.get_line_width() / 2), (bounds[0], self.get_line_width() / 2)),
+                    fill=self.get_line_fill(),
+                    width=int(self.get_line_width() * scale))
+        data = [w for w in self.__provider.get_weather()
+                if self.__effect == WeatherEffectiveness.ANY or w.effect == self.__effect]
+        stacked = int(bounds[0] / (sample_size[1] + 20))
+        span = (bounds[0] - 20) / stacked
+        for i in range(stacked):
+            index = int(i / (stacked - 1) * (len(data) - 1))
+            w = data[index]
+
+            view = self.__get_icon_view(w)
+            content_size = view.content_size()
+            view_canvas = Image.new('L', content_size, color=COLOR_TRANSPARENT)
+            canvas_draw = ImageDraw.Draw(view_canvas)
+            view.draw(canvas_draw, scale)
+            overlay(canvas._image, view_canvas, (int(i * span + 10 + span / 2 - content_size[1] / 2), 10))
+
     def refresh(self):
         data = [(self.label(w), self.__value(w)) for w in self.__provider.get_weather()
-                if w.effect == self.__effect]
+                if self.__effect == WeatherEffectiveness.ANY or w.effect == self.__effect]
         self.set_data(data)
