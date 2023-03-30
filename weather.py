@@ -262,6 +262,7 @@ def get_weather_icon(day: Day):
 def get_day_name(day: Day):
     return day.name.replace('_', ' ').capitalize()
 
+
 def get_unit_name(unit: TemperatureUnit):
     if unit == TemperatureUnit.CELSIUS:
         return '°C'
@@ -402,8 +403,8 @@ class MiniWeatherView(VGroup):
         if self.__icon_view is None:
             self.__add_views(weather)
         else:
-            self.__icon_view = get_weather_icon(weather.day)
-            self.__label = get_day_name(weather.day)
+            self.__icon_view.set_image(get_weather_icon(weather.day))
+            self.__label.set_text(get_day_name(weather.day))
 
 
 class WeatherTrendView(TrendChartsView):
@@ -438,7 +439,7 @@ class WeatherTrendView(TrendChartsView):
             365 * (w.time.tm_year - current_time.tm_year)
 
     @cache
-    def __get_icon_sample(self) -> MiniWeatherView | None:
+    def __get_icon_sample(self) -> VGroup | None:
         weather = (w for w in self.__provider.get_weather()
                    if self.__effect == WeatherEffectiveness.ANY or w.effect == self.__effect)
         try:
@@ -449,16 +450,25 @@ class WeatherTrendView(TrendChartsView):
         return self.__get_icon_view(w)
 
     def __get_icon_view(self, weather: Weather):
+        group = VGroup(
+            self.context,
+            alignment=ViewAlignmentHorizontal.CENTER
+        )
+        time = TextView(
+            self.context,
+            text=pytime.strftime('%H:%M', weather.time)
+        )
         view = MiniWeatherView(
             self.context, DirectWeatherProvider(weather),
             effect=WeatherEffectiveness.ANY
         )
-        size = view.content_size()
-        view.actual_measurement = ViewMeasurement.default(
+        group.add_views(time, view)
+        size = group.content_size()
+        group.actual_measurement = ViewMeasurement.default(
             width=size[0],
             height=size[1]
         )
-        return view
+        return group
 
     def x_axis_size(self) -> float:
         sample = self.__get_icon_sample()
@@ -482,12 +492,13 @@ class WeatherTrendView(TrendChartsView):
             index = int(i / (stacked - 1) * (len(data) - 1))
             w = data[index]
 
-            view = self.__get_icon_view(w)
-            content_size = view.content_size()
-            view_canvas = Image.new('L', content_size, color=COLOR_TRANSPARENT)
+            icon_view = self.__get_icon_view(w)
+            icon_content_size = icon_view.content_size()
+            view_canvas = Image.new('L', icon_content_size, color=COLOR_TRANSPARENT)
             canvas_draw = ImageDraw.Draw(view_canvas)
-            view.draw(canvas_draw, scale)
-            overlay(canvas._image, view_canvas, (int(i * span + 20 + span / 2 - content_size[1] / 2), 10))
+            icon_view.draw(canvas_draw, scale)
+            overlay(canvas._image, view_canvas,
+                    (int(i * span + 20 + span / 2 - icon_content_size[1] / 2), 10))
 
     def refresh(self):
         data = [(self.label(w), self.__value(w)) for w in self.__provider.get_weather()
