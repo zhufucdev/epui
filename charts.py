@@ -69,10 +69,25 @@ class ChartsView(View):
             self.__configuration = configuration
             self.invalidate()
 
-    def x_axis_size(self) -> int:
+    def content_size(self) -> Tuple[float, float]:
+        if self.__configuration.x_axis.enabled:
+            x_size = self.x_axis_size()
+        else:
+            x_size = 0
+        if self.__configuration.y_axis.enabled:
+            y_size = self.y_axis_size()
+        else:
+            y_size = 0
+
+        if self.__configuration.x_axis.position == AxisPosition.BOTTOM:
+            return y_size + 120, x_size + 80
+        else:
+            return x_size + 120, y_size + 80
+
+    def x_axis_size(self) -> float:
         return 64
 
-    def y_axis_size(self) -> int:
+    def y_axis_size(self) -> float:
         return 64
 
     def draw_x_axis(self, canvas: ImageDraw.ImageDraw, bounds: Tuple[int, int], scale: float):
@@ -91,63 +106,79 @@ class ChartsView(View):
         overlay(canvas._image, body_canvas, (body_bounds[0], body_bounds[1]))
 
     def __draw_axis(self, canvas: ImageDraw.ImageDraw, scale: float) -> Tuple[int, int, int, int]:
-        x_axis = [0] * 4
-        y_axis = [0] * 4
-        body_bounds = [0] * 4
+        x_axis = [0.0] * 4
+        y_axis = [0.0] * 4
+        body_bounds = [0.0] * 4
         bounds = self.actual_measurement.size
         if self.__configuration.x_axis.enabled and self.__configuration.y_axis.enabled:
             x_axis[2] = bounds[0] - self.y_axis_size()
-            x_axis[3] = self.x_axis_size()
-            y_axis[2] = self.y_axis_size()
+            x_axis[3] = self.x_axis_size() * scale
+            y_axis[2] = self.y_axis_size() * scale
             y_axis[3] = bounds[1] - self.x_axis_size()
 
             if self.__configuration.x_axis.position == AxisPosition.BOTTOM:
-                x_axis[1] = bounds[1] - self.x_axis_size()
-                y_axis[1] = bounds[1] - self.y_axis_size()
+                x_axis[1] = bounds[1] - self.x_axis_size() * scale
+                y_axis[1] = bounds[1] - self.y_axis_size() * scale
             else:
                 x_axis[1] = 0
-                y_axis[1] = self.x_axis_size()
+                y_axis[1] = self.x_axis_size() * scale
             if self.__configuration.y_axis.position == AxisPosition.LEFT:
-                x_axis[0] = self.y_axis_size()
+                x_axis[0] = self.y_axis_size() * scale
                 y_axis[0] = 0
             else:
                 x_axis[0] = 0
-                y_axis[0] = bounds[0] - self.y_axis_size()
+                y_axis[0] = bounds[0] - self.y_axis_size() * scale
 
         elif self.__configuration.x_axis.enabled and not self.__configuration.y_axis.enabled:
             if self.__configuration.x_axis.position == AxisPosition.BOTTOM:
                 x_axis[0] = 0
-                x_axis[1] = bounds[1] - self.x_axis_size()
+                x_axis[1] = bounds[1] - self.x_axis_size() * scale
                 x_axis[2] = bounds[0]
-                x_axis[3] = self.x_axis_size()
+                x_axis[3] = self.x_axis_size() * scale
             else:
                 x_axis[0] = 0
                 x_axis[1] = 0
                 x_axis[2] = bounds[0]
-                x_axis[3] = self.x_axis_size()
+                x_axis[3] = self.x_axis_size() * scale
         elif not self.__configuration.x_axis.enabled and self.__configuration.y_axis.enabled:
             if self.__configuration.y_axis.position == AxisPosition.LEFT:
                 y_axis[0] = 0
                 y_axis[1] = 0
-                y_axis[2] = self.y_axis_size()
+                y_axis[2] = self.y_axis_size() * scale
                 y_axis[3] = bounds[1]
             else:
-                y_axis[0] = bounds[0] - self.y_axis_size()
+                y_axis[0] = bounds[0] - self.y_axis_size() * scale
                 y_axis[1] = 0
-                y_axis[2] = self.y_axis_size()
+                y_axis[2] = self.y_axis_size() * scale
                 y_axis[3] = bounds[1]
         else:
             return 0, 0, int(bounds[0]), int(bounds[1])
 
         if util.is_positive((x_axis[2], x_axis[3])):
-            x_canvas = Image.new('L', (x_axis[2], x_axis[3]), COLOR_TRANSPARENT)
-            self.draw_x_axis(ImageDraw.Draw(x_canvas), (x_axis[2], x_axis[3]), scale)
-            overlay(canvas._image, x_canvas, (x_axis[0], x_axis[1]))
+            x_canvas = Image.new('L', util.int_vector((x_axis[2], x_axis[3])), COLOR_TRANSPARENT)
+            self.draw_x_axis(ImageDraw.Draw(x_canvas), util.int_vector((x_axis[2], x_axis[3])), scale)
+            overlay(canvas._image, x_canvas, util.int_vector((x_axis[0], x_axis[1])))
         if util.is_positive((y_axis[2], y_axis[3])):
-            y_canvas = Image.new('L', (y_axis[2], y_axis[3]), COLOR_TRANSPARENT)
-            self.draw_y_axis(ImageDraw.Draw(y_canvas), (y_axis[2], y_axis[3]), scale)
-            overlay(canvas._image, y_canvas, (y_axis[0], y_axis[1]))
-        return body_bounds[0], body_bounds[1], body_bounds[2], body_bounds[3]
+            y_canvas = Image.new('L', util.int_vector((y_axis[2], y_axis[3])), COLOR_TRANSPARENT)
+            self.draw_y_axis(ImageDraw.Draw(y_canvas), util.int_vector((y_axis[2], y_axis[3])), scale)
+            overlay(canvas._image, y_canvas, util.int_vector((y_axis[0], y_axis[1])))
+
+        if self.__configuration.x_axis.position == AxisPosition.LEFT \
+                or self.__configuration.x_axis.position == AxisPosition.RIGHT:
+            x_axis, y_axis = y_axis, x_axis
+
+        body_bounds[3] = bounds[1] - x_axis[3]
+        if x_axis[1] == 0:
+            body_bounds[1] = x_axis[3]
+        else:
+            body_bounds[1] = 0
+        body_bounds[2] = bounds[0] - y_axis[2]
+        if y_axis[0] == 0:
+            body_bounds[0] = y_axis[2]
+        else:
+            body_bounds[0] = 0
+
+        return int(body_bounds[0]), int(body_bounds[1]), int(body_bounds[2]), int(body_bounds[3])
 
 
 IndependentVar = int | float | str
@@ -355,25 +386,38 @@ class TrendChartsView(ChartsView):
     """
 
     def __init__(self, context: Context,
-                 title: str,
                  data: ChartData,
+                 title: str = None,
                  line_width: float = 2,
                  line_fill: int = 0,
                  line_type: ChartsLineType = ChartsLineType.STRAIGHT,
+                 configuration: ChartsConfiguration | None = None,
                  prefer: ViewMeasurement = ViewMeasurement.default()):
-        super().__init__(
-            context,
-            configuration=ChartsConfiguration(
-                title=title,
-                x_axis=Axis.disabled(),
-                y_axis=Axis.disabled()
-            ),
-            prefer=prefer
-        )
+        if configuration:
+            super().__init__(
+                context,
+                configuration=configuration,
+                prefer=prefer
+            )
+        else:
+            super().__init__(
+                context,
+                configuration=self.pure_trends_configuration(title),
+                prefer=prefer
+            )
+
         self.__line_type = line_type
         self.__data = data
         self.__line_width = line_width
         self.__line_fill = line_fill
+
+    @staticmethod
+    def pure_trends_configuration(title: str):
+        return ChartsConfiguration(
+            title=title,
+            x_axis=Axis.disabled(),
+            y_axis=Axis.disabled()
+        )
 
     def get_line_width(self):
         return self.__line_width
