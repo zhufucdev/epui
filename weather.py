@@ -95,19 +95,36 @@ class WeatherProvider:
         """
         Refresh the weather query
         :return: list of weather infos, sorted from the most recent to the farthest future,
-         length of the which is undefined
+         length of which is undefined
         """
         pass
 
 
 class CachedWeatherProvider(WeatherProvider):
+    """
+    An abstract class on which cached weather providers are based
+
+    If a provider is cached, it responds the same result in certain
+    condition, in this case, time
+    """
     def __init__(self, location: Location, temperature_unit: TemperatureUnit, cache_invalidate_interval: float = 3600):
+        """
+        Creates a cached provider
+        :param location: what place the weather info applies to
+        :param temperature_unit: which temperature unit the info adopts
+        :param cache_invalidate_interval: the cache's lifespan
+        """
         super().__init__(location, temperature_unit)
         self.cache_invalidation = cache_invalidate_interval
         self.__update_time = None
         self.__cache = None
 
     def invalidate(self) -> List[Weather]:
+        """
+        Alias of `WeatherProvider.get_weather`
+
+        Should override this function to work properly
+        """
         pass
 
     def get_weather(self):
@@ -121,9 +138,11 @@ class CachedWeatherProvider(WeatherProvider):
 
 
 class DirectWeatherProvider(WeatherProvider):
-    def __init__(self, weather: Weather):
+    """
+    A weather provider that serves a constant result
+    """
+    def __init__(self, weather: Weather, location: Location = Location(0, 0, 'Test Land')):
         self.__weather = weather
-        location = Location(0, 0, 'Test Land')
         super().__init__(location, TemperatureUnit.CELSIUS)
 
     def get_weather(self) -> List[Weather]:
@@ -131,7 +150,17 @@ class DirectWeatherProvider(WeatherProvider):
 
 
 class CaiYunWeatherProvider(CachedWeatherProvider):
+    """
+    A real implementation of CaiYun Weather, a Chinese weather provider
+    that offers free API access to personal developers
+    """
     def __init__(self, location: Location, api_key: str, cache_invalidate_interval: float = 3600):
+        """
+        Create a CaiYun Weather provider
+        :param location: what place the weather info applies to
+        :param api_key: token to access the API. Get one in https://dashboard.caiyunapp.com/v1/token/
+        :param cache_invalidate_interval: lifespan of the cache. See `CachedWeatherProvider`
+        """
         super().__init__(location, TemperatureUnit.CELSIUS, cache_invalidate_interval)
         self.api_key = api_key
 
@@ -143,7 +172,7 @@ class CaiYunWeatherProvider(CachedWeatherProvider):
     def __caiyun_get_day(raw: str) -> Day:
         """
         See https://docs.caiyunapp.com/docs/tables/skycon/ for full list
-        :param raw: caiyun's response
+        :param raw: CaiYun's response
         :return: my interface
         """
         raw = raw.lower()
@@ -408,12 +437,27 @@ class MiniWeatherView(VGroup):
 
 
 class WeatherTrendView(TrendChartsView):
+    """
+    A large view that contains a charts and its corresponding weather condition
+    """
     def __init__(self, context: Context,
                  title: str, provider: WeatherProvider, effect: WeatherEffectiveness,
                  value: Callable[[Weather], float],
                  line_fill: int = 0, line_width: float = 2,
                  prefer: ViewMeasurement = ViewMeasurement.default(),
                  line_type: ChartsLineType = ChartsLineType.BEZIER_CURVE):
+        """
+        Create a WeatherTrendView
+        :param context: where the view lives in
+        :param title: the title, displayed right above the x-axis
+        :param provider: the weather provider
+        :param effect: only display what kind of weather info
+        :param value: draws what data on the charts
+        :param line_fill: what color is the charts line
+        :param line_width: how bold the charts is
+        :param prefer: the preferred view measurement
+        :param line_type: what curve to draw the charts
+        """
         super().__init__(
             context,
             data=[],
