@@ -191,6 +191,7 @@ Following are views that have been implemented
 > A CalendarView is a vertical list of `CalendarStripeView` to display a series of events
 
 ## License
+```
 The MIT License (MIT)
 
 Copyright (c) 2023 zhufucdev
