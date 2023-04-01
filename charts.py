@@ -268,7 +268,7 @@ def draw_bezier_curve(
             pc2 = (p0[0] * 0.2 + p1[0] * 0.8, p1[1])
 
         if helper_slopes is not None:
-            r = bounds[1] / len(data) * 2
+            r = min(bounds[1], bounds[0]) / len(data)
             if helper_slopes[0] is not None:
                 u0 = math.sqrt(r ** 2 / (1 + helper_slopes[0] ** 2))
                 pc1 = (p0[0] + u0, helper_slopes[0] * u0 + p0[1])
