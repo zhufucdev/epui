@@ -1,4 +1,3 @@
-import asyncio
 import logging
 import numbers
 from enum import Enum
@@ -183,14 +182,18 @@ class Group(View):
 
     def add_views(self, *children: View):
         self.__children.extend(children)
-        self.context.request_redraw()
+        self.invalidate()
 
     def add_view(self, child: View):
         self.__children.append(child)
-        self.context.request_redraw()
+        self.invalidate()
 
     def get_children(self):
         return [child for child in self.__children]
+
+    def clear(self):
+        self.__children.clear()
+        self.invalidate()
 
     def draw(self, canvas: ImageDraw.ImageDraw, scale: float):
         super().draw(canvas, scale)
@@ -220,7 +223,7 @@ class Group(View):
 
             if size[1] == ViewSize.WRAP_CONTENT \
                     and child.content_size()[1] + margin_v > _max[1]:
-                _max[1] = child.content_size()[1]
+                _max[1] = child.content_size()[1] + margin_v
             elif type(size[1]) is float or type(size[1]) is int \
                     and size[1] + margin_v > _max[1]:
                 _max[1] = size[1] + margin_v
@@ -439,7 +442,7 @@ class TextView(View):
     def get_font(self):
         return self.__font
 
-    def set_font(self, font: ImageFont.ImageFont):
+    def set_font(self, font: str):
         if font != self.__font:
             self.__font = font
             self.invalidate()
@@ -543,8 +546,10 @@ class Surface(View):
     Surface is a view that displays pure color
     """
 
-    def __init__(self, context: Context, fill: int = 0, prefer: ViewMeasurement = ViewMeasurement.default()):
+    def __init__(self, context: Context, radius: int = 0, fill: int = 0,
+                 prefer: ViewMeasurement = ViewMeasurement.default()):
         self.__fill = fill
+        self.__radius = radius
         super().__init__(context, prefer)
 
     def content_size(self) -> Tuple[float, float]:
@@ -568,11 +573,20 @@ class Surface(View):
             self.__fill = fill
             self.context.request_redraw()
 
+    def get_radius(self):
+        return self.__radius
+
+    def set_radius(self, radius):
+        if self.__radius != radius:
+            self.__radius = radius
+            self.invalidate()
+
     def draw(self, canvas: ImageDraw.ImageDraw, scale: float):
         super().draw(canvas, scale)
-        canvas.rectangle(
+        canvas.rounded_rectangle(
             xy=((0, 0), self.actual_measurement.size),
-            fill=self.__fill,
+            radius=self.__radius * scale,
+            fill=self.__fill
         )
 
 
