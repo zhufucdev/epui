@@ -74,7 +74,15 @@ class Event:
 
 
 class CalendarProvider:
+    """
+    A CalendarProvider supplies `Event` for a `CalendarView`
+    """
     def __init__(self, name: str, max_results: int):
+        """
+        Create a calendar provider
+        :param name: what to call it
+        :param max_results: max count of items the func:`get_events` returns
+        """
         self.__name = name
         self.__max_results = max_results
 
@@ -82,14 +90,34 @@ class CalendarProvider:
         return self.__name
 
     def get_max_results(self):
+        """
+        the func:`get_events` should return no more than this number of events
+        :return: the max count of results
+        """
         return self.__max_results
 
     def get_events(self) -> List[Event]:
+        """
+        A list of events this provider supplies
+        :return: the events, counting no more than `max_results`
+        """
         pass
 
 
 class GoogleCalendarProvider(CalendarProvider):
+    """
+    A working implementation of CalendarProvider than involves Google Workspace
+    """
     def __init__(self, name: str, credentials_file: str, calendar_id: str = 'primary', max_results: int = 10):
+        """
+        Creates a GoogleCalendarProvider
+        :param name: what to call it
+        :param credentials_file: path to the credentials file. To get one, see
+        https://developers.google.com/calendar/api/quickstart/python#set_up_your_environment
+
+        :param calendar_id: the calendar id which the owner of the credentials ever created
+        :param max_results: how many results at most should the `get_events` function return
+        """
         self.__calendar_id = calendar_id
 
         scope = ['https://www.googleapis.com/auth/calendar.readonly']
@@ -140,9 +168,20 @@ class GoogleCalendarProvider(CalendarProvider):
 
 
 class CalenderStripeView(Group):
+    """
+    A view that displays a single event in high contrast
+    """
     def __init__(self, context: Context, event: Event,
                  font_size: int = 16, font=TextView.default_font,
                  prefer: ViewMeasurement = ViewMeasurement.default()):
+        """
+        Create a CalendarStripeView
+        :param context: where the view lives
+        :param event: the event to display
+        :param font_size: font size of the summary and time
+        :param font: file to the desired font family
+        :param prefer: preferred layout method
+        """
         super().__init__(context, prefer)
         self.__event = event
         self.__text_view = TextView(context,
@@ -165,9 +204,17 @@ class CalenderStripeView(Group):
         )
 
     def get_font(self):
+        """
+        Font family of the summary and time
+        :return: the path to the font file
+        """
         return self.__text_view.get_font()
 
     def set_font(self, font: str):
+        """
+        Font family of the summary and time. This may cause a full redraw
+        :param font: desired font file
+        """
         return self.__text_view.set_font(font)
 
     def __get_text(self) -> str:
@@ -185,18 +232,37 @@ class CalenderStripeView(Group):
                    f'{pytime.strftime(t_format, span.end_time())}'
 
     def get_event(self):
+        """
+        The event to display
+        :return: the current event
+        """
         return self.__event
 
     def set_event(self, event: Event):
+        """
+        The event to display. This may cause a full redraw
+        :param event: the desired event
+        """
         if self.__event != event:
             self.__event = event
             self.invalidate()
 
 
 class CalendarView(VGroup):
+    """
+    A CalendarView is a vertical list of `CalendarStripeView` to display a series of events
+    """
     def __init__(self, context: Context, provider: CalendarProvider,
                  font_size: int = 16, font: str = TextView.default_font,
                  prefer: ViewMeasurement = ViewMeasurement.default()):
+        """
+        Creates a CalendarView
+        :param context: where the view lives in
+        :param provider: the event provider
+        :param font_size: font size of the summary and time
+        :param font: file path to the desired font family. Only be a TrueTypeFont is acceptable
+        :param prefer: preferred layout
+        """
         self.__provider = provider
         self.__font = font
         self.__font_size = font_size
@@ -204,9 +270,17 @@ class CalendarView(VGroup):
         self.refresh()
 
     def get_provider(self):
+        """
+        The event provider
+        :return: current provider
+        """
         return self.__provider
 
     def set_provider(self, provider: CalendarProvider):
+        """
+        The event provider. May lead to a full redraw
+        :param provider: desired provider
+        """
         if provider != self.__provider:
             self.__provider = provider
             self.refresh()
@@ -217,14 +291,25 @@ class CalendarView(VGroup):
                                   ViewMeasurement.default(width=ViewSize.MATCH_PARENT, margin_bottom=4))
 
     def get_font(self):
+        """
+        The font family of the summary and time label
+        :return: file path to the current font
+        """
         return self.__font
 
     def set_font(self, font: ImageFont.ImageFont):
+        """
+        The font family of the summary and time label. May lead to a full redraw
+        :param font: path to the desired font file. Only be a TrueTypeFont is acceptable
+        """
         for view in self.get_children():
             if type(view) is TextView:
                 view.set_font(font)
 
     def refresh(self):
+        """
+        Signal the event provider again and redraw
+        """
         self.clear()
         events = self.__provider.get_events()
 
@@ -242,3 +327,5 @@ class CalendarView(VGroup):
                     prefer=ViewMeasurement.default(size=ViewSize.MATCH_PARENT, margin=4)
                 )
             )
+
+        self.invalidate()
