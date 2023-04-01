@@ -159,7 +159,7 @@ Each layout method has its own way of measuring, while sharing the same logic
 
 - Keep margin. Margins are preferably user-defined unless there's no space left
 - Least space. Each child view takes the least possible space unless asked to scale up
-- Left to right, top to bottom
+- Left to right, top to bottom, background to foreground
 
 ### View gallery
 
