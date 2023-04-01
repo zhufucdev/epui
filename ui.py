@@ -546,9 +546,11 @@ class Surface(View):
     Surface is a view that displays pure color
     """
 
-    def __init__(self, context: Context, radius: int = 0, fill: int = 0,
-                 prefer: ViewMeasurement = ViewMeasurement.default()):
+    def __init__(self, context: Context, radius: int = 0, fill: int = 0, stroke: int = COLOR_TRANSPARENT,
+                 stroke_width: int = 1, prefer: ViewMeasurement = ViewMeasurement.default()):
         self.__fill = fill
+        self.__stroke = stroke
+        self.__width = stroke_width
         self.__radius = radius
         super().__init__(context, prefer)
 
@@ -571,7 +573,15 @@ class Surface(View):
     def set_fill(self, fill: int):
         if fill != self.__fill:
             self.__fill = fill
-            self.context.request_redraw()
+            self.invalidate()
+
+    def get_stroke(self):
+        return self.__stroke
+
+    def set_stroke(self, stroke: int):
+        if self.__stroke != stroke:
+            self.__stroke = stroke
+            self.invalidate()
 
     def get_radius(self):
         return self.__radius
@@ -581,12 +591,36 @@ class Surface(View):
             self.__radius = radius
             self.invalidate()
 
+    def get_stroke_width(self):
+        return self.__width
+
+    def set_stroke_width(self, width: int):
+        if self.__width != width:
+            self.__width = width
+            self.invalidate()
+
     def draw(self, canvas: ImageDraw.ImageDraw, scale: float):
         super().draw(canvas, scale)
+        if self.__stroke != COLOR_TRANSPARENT:
+            outline = self.__stroke
+        else:
+            outline = None
+
+        if self.__fill != COLOR_TRANSPARENT and self.__width > 0:
+            fill = self.__fill
+            width = self.__width
+        else:
+            fill = None
+            width = 0
+
+        size = (self.actual_measurement.size[0] - width, self.actual_measurement.size[1] - width)
+
         canvas.rounded_rectangle(
-            xy=((0, 0), self.actual_measurement.size),
+            xy=((0, 0), size),
             radius=self.__radius * scale,
-            fill=self.__fill
+            fill=fill,
+            outline=outline,
+            width=self.__width
         )
 
 

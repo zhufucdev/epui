@@ -4,13 +4,17 @@ from PIL import Image
 
 cached = {}
 
-RESOURCES_DIR = f'{os.path.abspath(os.path.dirname(__file__))}/resources'
+resources_dir = [f'{os.path.abspath(os.path.dirname(__file__))}/resources']
 COLOR_TRANSPARENT = 254
 
 
 def get_file(name: str):
-    candidates = (os.path.join(RESOURCES_DIR, f) for f in os.listdir(RESOURCES_DIR) if f.startswith(name))
-    return next(candidates)
+    for _dir in resources_dir:
+        candidates = (os.path.join(_dir, f) for f in os.listdir(_dir) if f.startswith(name))
+        try:
+            return next(candidates)
+        except:
+            pass
 
 
 def get_image(name: str) -> Image.Image:
