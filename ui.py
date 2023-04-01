@@ -640,11 +640,14 @@ class ImageContentFit(Enum):
 
 
 class ImageView(View):
+    """
+    A view that shows a static view of image
+    """
     def __init__(self, context: Context, image: Image.Image | str,
                  fit: ImageContentFit = ImageContentFit.FIT,
                  prefer: ViewMeasurement = ViewMeasurement.default()):
         """
-        A view that shows a static view of image
+        Create a ImageView
         :param context: the context
         :param fit: method to handle oversized images or something
         :param image: the image instance or its representation
