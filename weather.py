@@ -445,7 +445,8 @@ class WeatherTrendView(TrendChartsView):
                  value: Callable[[Weather], float],
                  line_fill: int = 0, line_width: float = 2,
                  prefer: ViewMeasurement = ViewMeasurement.default(),
-                 line_type: ChartsLineType = ChartsLineType.BEZIER_CURVE):
+                 line_type: ChartsLineType = ChartsLineType.BEZIER_CURVE,
+                 charts_configuration: ChartsConfiguration = None):
         """
         Create a WeatherTrendView
         :param context: where the view lives in
@@ -458,6 +459,13 @@ class WeatherTrendView(TrendChartsView):
         :param prefer: the preferred view measurement
         :param line_type: what curve to draw the charts
         """
+        if charts_configuration is None:
+            charts_configuration=ChartsConfiguration(
+                title=title,
+                x_axis=Axis(position=AxisPosition.BOTTOM, label=''),
+                y_axis=Axis.disabled()
+            )
+        
         super().__init__(
             context,
             data=[],
@@ -465,11 +473,7 @@ class WeatherTrendView(TrendChartsView):
             line_fill=line_fill,
             line_type=line_type,
             prefer=prefer,
-            configuration=ChartsConfiguration(
-                title=title,
-                x_axis=Axis(position=AxisPosition.BOTTOM, label=''),
-                y_axis=Axis.disabled()
-            )
+            configuration=charts_configuration
         )
         self.__provider = provider
         self.__effect = effect

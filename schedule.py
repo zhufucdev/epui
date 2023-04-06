@@ -108,7 +108,7 @@ class GoogleCalendarProvider(CalendarProvider):
     """
     A working implementation of CalendarProvider than involves Google Workspace
     """
-    def __init__(self, name: str, credentials_file: str, calendar_id: str = 'primary', max_results: int = 10):
+    def __init__(self, name: str, credentials_file: str, calendar_id: str = 'primary', max_results: int = 10, filter_today: bool = False):
         """
         Creates a GoogleCalendarProvider
         :param name: what to call it
@@ -117,8 +117,10 @@ class GoogleCalendarProvider(CalendarProvider):
 
         :param calendar_id: the calendar id which the owner of the credentials ever created
         :param max_results: how many results at most should the `get_events` function return
+        :param filter_today: show only today's event
         """
         self.__calendar_id = calendar_id
+        self.__filter_today = filter_today
 
         scope = ['https://www.googleapis.com/auth/calendar.readonly']
         creds = None
@@ -161,6 +163,17 @@ class GoogleCalendarProvider(CalendarProvider):
                 orderBy='startTime'
             ).execute()
             events = raw.get('items', [])
+
+            if self.__filter_today:
+                events_remove = []
+                now_day = datetime.datetime.now().timetuple().tm_yday
+                for event in events:
+                    event_start_day = self.__parse_event(event).get_time().start_time().tm_yday
+                    if event_start_day != now_day:
+                        events_remove.append(event)
+                for event in events_remove:
+                    events.remove(event)
+        
             return [self.__parse_event(e) for e in events]
         except HttpError as e:
             logging.warning(f'Unable to fetch calendar events: {e}')
