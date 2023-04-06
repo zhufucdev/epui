@@ -458,6 +458,7 @@ class WeatherTrendView(TrendChartsView):
         :param line_width: how bold the charts is
         :param prefer: the preferred view measurement
         :param line_type: what curve to draw the charts
+        :param charts_configuration: detailed configuration of charts
         """
         if charts_configuration is None:
             charts_configuration=ChartsConfiguration(
