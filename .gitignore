@@ -2,3 +2,4 @@
 /cache/
 /proper_res/
 /__pycache__
+*test*

@@ -1,6 +1,5 @@
 from datetime import datetime
 import ui
-import util
 
 class SquareDateView(ui.Group):
     """
@@ -25,7 +24,7 @@ class SquareDateView(ui.Group):
         :param width: The width of the view
         """
         super().__init__(context, prefer)
-        self.font = font
+        self.__font = font
         self.__width = width
         self.__day_font_size = day_font_size
         self.__weekday_font_size = weekday_font_size
@@ -48,7 +47,7 @@ class SquareDateView(ui.Group):
         return ui.TextView(
             context=self.context,
             text=datetime.now().strftime('%d'),
-            font=self.font,
+            font=self.__font,
             font_size=self.__day_font_size,
             fill=255,
             align_horizontal=ui.ViewAlignmentHorizontal.CENTER,
@@ -63,7 +62,7 @@ class SquareDateView(ui.Group):
         return ui.TextView(
             context=self.context,
             text=datetime.now().strftime('%b'),
-            font=self.font,
+            font=self.__font,
             font_size=self.__month_font_size,
             fill=255,
             align_horizontal=ui.ViewAlignmentHorizontal.CENTER,
@@ -78,7 +77,7 @@ class SquareDateView(ui.Group):
         return ui.TextView(
             context=self.context,
             text=datetime.now().strftime('%a') + '\n ',
-            font=self.font,
+            font=self.__font,
             font_size=self.__weekday_font_size,
             fill=255,
             align_horizontal=ui.ViewAlignmentHorizontal.CENTER,
@@ -96,7 +95,7 @@ class SquareDateView(ui.Group):
         return ui.TextView(
             context=self.context,
             text=str(curr_week + self.__current_week_offset) + ' ',
-            font=self.font,
+            font=self.__font,
             font_size=self.__current_week_font_size,
             fill=255,
             align_horizontal=ui.ViewAlignmentHorizontal.RIGHT,

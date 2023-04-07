@@ -107,6 +107,7 @@ class CachedWeatherProvider(WeatherProvider):
     If a provider is cached, it responds the same result in certain
     condition, in this case, time
     """
+
     def __init__(self, location: Location, temperature_unit: TemperatureUnit, cache_invalidate_interval: float = 3600):
         """
         Creates a cached provider
@@ -141,6 +142,7 @@ class DirectWeatherProvider(WeatherProvider):
     """
     A weather provider that serves a constant result
     """
+
     def __init__(self, weather: Weather, location: Location = Location(0, 0, 'Test Land')):
         self.__weather = weather
         super().__init__(location, TemperatureUnit.CELSIUS)
@@ -149,24 +151,47 @@ class DirectWeatherProvider(WeatherProvider):
         return [self.__weather]
 
 
+class CaiYunAPIProvider:
+    """
+    A CaiYun API provider, which provides API access to CaiYun
+    """
+    def __init__(self, location: Location, api_key: str):
+        """
+        Creates a CaiYun API provider
+        :param location: what place the weather info applies to
+        :param api_key: token to access the API. Get one in https://dashboard.caiyunapp.com/v1/token/
+        """
+        self.__api_key = api_key
+        self.location = location
+        self.api_callback_raw = self.__call_api()
+        self.api_callback = json.loads(self.api_callback_raw)
+
+    def __get_api_url(self):
+        return f'https://api.caiyunapp.com/v2.6/{self.__api_key}/' \
+               f'{self.location.longitude},{self.location.latitude}'
+
+    def __call_api(self) -> str:
+        response = requests.get(self.__get_api_url(
+        ) + '/weather?dailysteps=3&hourlysteps=24&minutely=false')
+        if not response.ok:
+            raise IOError('Realtime API not responding')
+        return response.text
+
+
 class CaiYunWeatherProvider(CachedWeatherProvider):
     """
     A real implementation of CaiYun Weather, a Chinese weather provider
     that offers free API access to personal developers
     """
-    def __init__(self, location: Location, api_key: str, cache_invalidate_interval: float = 3600):
+
+    def __init__(self, caiyun_api_provider: CaiYunAPIProvider, cache_invalidate_interval: float = 3600):
         """
         Create a CaiYun Weather provider
-        :param location: what place the weather info applies to
-        :param api_key: token to access the API. Get one in https://dashboard.caiyunapp.com/v1/token/
+        :param caiyun_api_provider: the CaiYun API provider. See `CaiYunAPIProvider`
         :param cache_invalidate_interval: lifespan of the cache. See `CachedWeatherProvider`
         """
-        super().__init__(location, TemperatureUnit.CELSIUS, cache_invalidate_interval)
-        self.api_key = api_key
-
-    def __get_api_url(self):
-        return f'https://api.caiyunapp.com/v2.6/{self.api_key}/' \
-               f'{self.get_location().longitude},{self.get_location().latitude}'
+        self.__api_provider = caiyun_api_provider
+        super().__init__(self.__api_provider.location, TemperatureUnit.CELSIUS, cache_invalidate_interval)
 
     @staticmethod
     def __caiyun_get_day(raw: str) -> Day:
@@ -206,11 +231,7 @@ class CaiYunWeatherProvider(CachedWeatherProvider):
             return Day.UNKNOWN
 
     def invalidate(self) -> List[Weather]:
-        response = requests.get(self.__get_api_url() + '/weather?dailysteps=3&hourlysteps=24&minutely=false')
-        if not response.ok:
-            raise IOError('Realtime API not responding')
-
-        api_callback = json.loads(response.text)
+        api_callback = self.__api_provider.api_callback
         result_realtime = api_callback['result']['realtime']
         result_hourly = api_callback['result']['hourly']
         result_daily = api_callback['result']['daily']
@@ -238,9 +259,11 @@ class CaiYunWeatherProvider(CachedWeatherProvider):
             for i in range(len(source['precipitation'])):
                 precipitation = source['precipitation'][i]
                 if 'datetime' in precipitation:
-                    time = datetime.datetime.fromisoformat(precipitation['datetime']).timetuple()
+                    time = datetime.datetime.fromisoformat(
+                        precipitation['datetime']).timetuple()
                 elif 'date' in precipitation:
-                    time = datetime.datetime.fromisoformat(precipitation['date']).timetuple()
+                    time = datetime.datetime.fromisoformat(
+                        precipitation['date']).timetuple()
                 else:
                     raise ValueError(precipitation)
 
@@ -336,7 +359,8 @@ class LargeWeatherView(HGroup):
                f'{weather.uv_index} UV'
 
     def __add_views(self, weather: Weather):
-        title_group = VGroup(self.context, alignment=ViewAlignmentHorizontal.RIGHT)
+        title_group = VGroup(
+            self.context, alignment=ViewAlignmentHorizontal.RIGHT)
         self.__icon_view = ImageView(self.context,
                                      image=get_weather_icon(weather.day),
                                      prefer=ViewMeasurement.default(
@@ -348,7 +372,8 @@ class LargeWeatherView(HGroup):
                                          font=TextView.default_font_bold,
                                          font_size=36)
         self.__subtitle_label_view = TextView(self.context,
-                                              text=self.__get_detailed_label(weather),
+                                              text=self.__get_detailed_label(
+                                                  weather),
                                               font_size=20,
                                               line_align=ViewAlignmentHorizontal.RIGHT)
         self.add_views(
@@ -377,7 +402,8 @@ class LargeWeatherView(HGroup):
         else:
             self.__icon_view.set_image(get_weather_icon(weather.day))
             self.__day_label_view.set_text(get_day_name(weather.day))
-            self.__subtitle_label_view.set_text(self.__get_detailed_label(weather))
+            self.__subtitle_label_view.set_text(
+                self.__get_detailed_label(weather))
 
         self.invalidate()
 
@@ -440,6 +466,7 @@ class WeatherTrendView(TrendChartsView):
     """
     A large view that contains a charts and its corresponding weather condition
     """
+
     def __init__(self, context: Context,
                  title: str, provider: WeatherProvider, effect: WeatherEffectiveness,
                  value: Callable[[Weather], float],
@@ -461,12 +488,12 @@ class WeatherTrendView(TrendChartsView):
         :param charts_configuration: detailed configuration of charts
         """
         if charts_configuration is None:
-            charts_configuration=ChartsConfiguration(
+            charts_configuration = ChartsConfiguration(
                 title=title,
                 x_axis=Axis(position=AxisPosition.BOTTOM, label=''),
                 y_axis=Axis.disabled()
             )
-        
+
         super().__init__(
             context,
             data=[],
@@ -543,7 +570,8 @@ class WeatherTrendView(TrendChartsView):
 
             icon_view = self.__get_icon_view(w)
             icon_content_size = icon_view.content_size()
-            view_canvas = Image.new('L', icon_content_size, color=COLOR_TRANSPARENT)
+            view_canvas = Image.new(
+                'L', icon_content_size, color=COLOR_TRANSPARENT)
             canvas_draw = ImageDraw.Draw(view_canvas)
             icon_view.draw(canvas_draw, scale)
             overlay(canvas._image, view_canvas,
