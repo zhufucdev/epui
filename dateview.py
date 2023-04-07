@@ -11,9 +11,22 @@ class SquareDateView(ui.Group):
                     day_font_size:int = 100,
                     month_font_size:int = 20,
                     current_week_font_size:int = 25,
-                    current_week_offset:int = None):
+                    current_week_offset:int = None,
+                    width:int = 200):
+        """
+        :param context: The context that the view is in
+        :param prefer: The preferred measurement of the view
+        :param font: The font of the text
+        :param weekday_font_size: The font size of the weekday
+        :param day_font_size: The font size of the day
+        :param month_font_size: The font size of the month
+        :param current_week_font_size: The font size of the current week
+        :param current_week_offset: The offset of the current week. If not set, will not display the current week
+        :param width: The width of the view
+        """
         super().__init__(context, prefer)
         self.font = font
+        self.__width = width
         self.__day_font_size = day_font_size
         self.__weekday_font_size = weekday_font_size
         self.__month_font_size = month_font_size
@@ -96,7 +109,7 @@ class SquareDateView(ui.Group):
 
     def __add_view(self):
         group = ui.Group(self.context, prefer=ui.ViewMeasurement.default(
-            width=200,
+            width=self.__width,
             height=ui.ViewSize.MATCH_PARENT
         ))
         group.add_views(
