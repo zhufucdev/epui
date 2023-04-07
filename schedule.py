@@ -186,7 +186,8 @@ class CalenderStripeView(Group):
     """
     def __init__(self, context: Context, event: Event,
                  font_size: int = 16, font=TextView.default_font,
-                 prefer: ViewMeasurement = ViewMeasurement.default()):
+                 prefer: ViewMeasurement = ViewMeasurement.default(),
+                 is_splited: bool = False, is_square:bool = False):
         """
         Create a CalendarStripeView
         :param context: where the view lives
@@ -194,11 +195,18 @@ class CalenderStripeView(Group):
         :param font_size: font size of the summary and time
         :param font: file to the desired font family
         :param prefer: preferred layout method
+        :param is_splited: whether to split the view into two parts
+        :param is_square: whether to make the view square
         """
         super().__init__(context, prefer)
         self.__event = event
-        self.__text_view = TextView(context,
-                                    text=self.__get_text(),
+        radius = 10
+        if is_square:
+            radius = 0
+
+        if is_splited:
+            self.__name_text_view = TextView(context,
+                                    text=self.__get_event_name(),
                                     font_size=font_size,
                                     font=font,
                                     fill=255,
@@ -208,13 +216,45 @@ class CalenderStripeView(Group):
                                         margin_left=10,
                                         margin_right=5
                                     ))
-        self.add_views(
-            Surface(context,
-                    radius=10,
-                    fill=1,
-                    prefer=ViewMeasurement.default(size=ViewSize.MATCH_PARENT)),
-            self.__text_view
-        )
+            self.__span_text_view = TextView(context,
+                                        text=self.__get_event_time(),
+                                        font_size=font_size,
+                                        font=font,
+                                        fill=255,
+                                        align_horizontal=ViewAlignmentHorizontal.RIGHT,
+                                        prefer=ViewMeasurement.default(
+                                            margin_top=2,
+                                            margin_bottom=5,
+                                            margin_right=10,
+                                            width=ViewSize.MATCH_PARENT,
+                                            height=ViewSize.MATCH_PARENT
+                                        ))
+            self.add_views(
+                Surface(context,
+                        radius=radius,
+                        fill=1,
+                        prefer=ViewMeasurement.default(size=ViewSize.MATCH_PARENT)),
+                self.__name_text_view,
+                self.__span_text_view)
+        else:
+            self.__text_view = TextView(context,
+                                        text=self.__get_text(),
+                                        font_size=font_size,
+                                        font=font,
+                                        fill=255,
+                                        prefer=ViewMeasurement.default(
+                                            margin_top=5,
+                                            margin_bottom=2,  # idk why, but it just aligned
+                                            margin_left=10,
+                                            margin_right=5
+                                        ))
+            self.add_views(
+                Surface(context,
+                        radius=radius,
+                        fill=1,
+                        prefer=ViewMeasurement.default(size=ViewSize.MATCH_PARENT)),
+                self.__text_view
+            )
 
     def get_font(self):
         """
@@ -230,6 +270,22 @@ class CalenderStripeView(Group):
         """
         return self.__text_view.set_font(font)
 
+    def __get_event_name(self) -> str:
+        return f'{self.__event.get_name()}'
+    
+    def __get_event_time(self) -> str:
+        span = self.__event.get_time()
+        if type(span) is FullDayTimeSpan:
+            days = span.get_span()
+            if days > 1:
+                return f'{days} days'
+            else:
+                return f'today'
+        else:
+            t_format = '%H:%M'
+            return f'{pytime.strftime(t_format, span.start_time())} - ' \
+                   f'{pytime.strftime(t_format, span.end_time())}'
+        
     def __get_text(self) -> str:
         span = self.__event.get_time()
         if type(span) is FullDayTimeSpan:
@@ -267,7 +323,8 @@ class CalendarView(VGroup):
     """
     def __init__(self, context: Context, provider: CalendarProvider,
                  font_size: int = 16, font: str = TextView.default_font,
-                 prefer: ViewMeasurement = ViewMeasurement.default()):
+                 prefer: ViewMeasurement = ViewMeasurement.default(),
+                 is_splited: bool = False, is_square: bool = False):
         """
         Creates a CalendarView
         :param context: where the view lives in
@@ -275,10 +332,13 @@ class CalendarView(VGroup):
         :param font_size: font size of the summary and time
         :param font: file path to the desired font family. Only be a TrueTypeFont is acceptable
         :param prefer: preferred layout
+        :param is_splited: if the view should be splited
         """
         self.__provider = provider
         self.__font = font
         self.__font_size = font_size
+        self.__is_splited = is_splited
+        self.__is_square = is_square
         super().__init__(context, prefer=prefer)
         self.refresh()
 
@@ -301,7 +361,9 @@ class CalendarView(VGroup):
     def __get_view(self, ev: Event):
         return CalenderStripeView(self.context,
                                   ev, self.__font_size, self.__font,
-                                  ViewMeasurement.default(width=ViewSize.MATCH_PARENT, margin_bottom=4))
+                                  ViewMeasurement.default(width=ViewSize.MATCH_PARENT, margin_bottom=4),
+                                  is_splited=self.__is_splited, is_square=self.__is_square)
+
 
     def get_font(self):
         """
