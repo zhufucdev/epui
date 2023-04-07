@@ -32,7 +32,7 @@ class FullDayTimeSpan(EventTimeSpan):
     def get_span(self) -> int:
         return self.__span
 
-    def date(self):
+    def start_date(self):
         return self.__date
 
 
@@ -103,12 +103,21 @@ class CalendarProvider:
         """
         pass
 
+class FilterProvider(CalendarProvider):
+    def __init__(self, name: str, parent: CalendarProvider, filter: Callable[[Event], bool]):
+        super().__init__(name, parent.get_max_results())
+        self.__parent = parent
+        self.__filter = filter
+    
+    def get_events(self) -> List[Event]:
+        return list(filter(self.__filter, self.__parent.get_events()))
+
 
 class GoogleCalendarProvider(CalendarProvider):
     """
     A working implementation of CalendarProvider than involves Google Workspace
     """
-    def __init__(self, name: str, credentials_file: str, calendar_id: str = 'primary', max_results: int = 10, filter_today: bool = False):
+    def __init__(self, name: str, credentials_file: str, calendar_id: str = 'primary', max_results: int = 10):
         """
         Creates a GoogleCalendarProvider
         :param name: what to call it
@@ -117,10 +126,8 @@ class GoogleCalendarProvider(CalendarProvider):
 
         :param calendar_id: the calendar id which the owner of the credentials ever created
         :param max_results: how many results at most should the `get_events` function return
-        :param filter_today: show only today's event
         """
         self.__calendar_id = calendar_id
-        self.__filter_today = filter_today
 
         scope = ['https://www.googleapis.com/auth/calendar.readonly']
         creds = None
@@ -163,16 +170,6 @@ class GoogleCalendarProvider(CalendarProvider):
                 orderBy='startTime'
             ).execute()
             events = raw.get('items', [])
-
-            if self.__filter_today:
-                events_remove = []
-                now_day = datetime.datetime.now().timetuple().tm_yday
-                for event in events:
-                    event_start_day = self.__parse_event(event).get_time().start_time().tm_yday
-                    if event_start_day != now_day:
-                        events_remove.append(event)
-                for event in events_remove:
-                    events.remove(event)
         
             return [self.__parse_event(e) for e in events]
         except HttpError as e:
