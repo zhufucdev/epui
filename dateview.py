@@ -117,7 +117,8 @@ class SquareDateView(ui.Group):
             self.__date_textview(),
             self.__weekday_textview(),
             self.__month_textview(),
-            self.__current_week_textview()
         )
+        if self.__current_week_textview() is not None:
+            group.add_view(self.__current_week_textview())
         self.add_view(group)
     
