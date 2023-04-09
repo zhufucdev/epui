@@ -178,7 +178,12 @@ class GoogleCalendarProvider(CalendarProvider):
                 pytime.strptime(data['end']['date'], daily_format)
             span = FullDayTimeSpan(date=start, span=(pytime.mktime(end) - pytime.mktime(start)) // 86400)
 
-        return Event(data['summary'], data['location'], span)
+        if 'location' in data:
+            location = data['location']
+        else:
+            location = ''
+
+        return Event(data['summary'], location, span)
 
     def get_events(self) -> List[Event]:
         if not self.__creds or not self.__creds.valid:
