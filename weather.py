@@ -528,16 +528,17 @@ class WeatherTrendView(TrendChartsView):
         return self.__get_icon_view(w)
 
     def __get_icon_view(self, weather: Weather):
+        fake_context = Context(None, self.context.canvas_size)
         group = VGroup(
-            self.context,
+            fake_context,
             alignment=ViewAlignmentHorizontal.CENTER
         )
         time = TextView(
-            self.context,
+            fake_context,
             text=pytime.strftime('%H:%M', weather.time)
         )
         view = MiniWeatherView(
-            self.context, DirectWeatherProvider(weather),
+            fake_context, DirectWeatherProvider(weather),
             effect=WeatherEffectiveness.ANY
         )
         group.add_views(time, view)
