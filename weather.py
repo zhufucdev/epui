@@ -155,6 +155,7 @@ class CaiYunAPIProvider:
     """
     A CaiYun API provider, which provides API access to CaiYun
     """
+
     def __init__(self, location: Location, api_key: str):
         """
         Creates a CaiYun API provider
@@ -163,19 +164,19 @@ class CaiYunAPIProvider:
         """
         self.__api_key = api_key
         self.location = location
-        self.api_callback_raw = self.__call_api()
-        self.api_callback = json.loads(self.api_callback_raw)
+        self.api_callback_raw = None
+        self.api_callback = None
 
     def __get_api_url(self):
         return f'https://api.caiyunapp.com/v2.6/{self.__api_key}/' \
                f'{self.location.longitude},{self.location.latitude}'
 
-    def __call_api(self) -> str:
-        response = requests.get(self.__get_api_url(
-        ) + '/weather?dailysteps=3&hourlysteps=24&minutely=false')
+    def invalidate(self):
+        response = requests.get(self.__get_api_url() + '/weather?dailysteps=3&hourlysteps=24&minutely=false')
         if not response.ok:
             raise IOError('Realtime API not responding')
-        return response.text
+        self.api_callback_raw = response.text
+        self.api_callback = json.loads(self.api_callback_raw)
 
 
 class CaiYunWeatherProvider(CachedWeatherProvider):
@@ -231,6 +232,7 @@ class CaiYunWeatherProvider(CachedWeatherProvider):
             return Day.UNKNOWN
 
     def invalidate(self) -> List[Weather]:
+        self.__api_provider.invalidate()
         api_callback = self.__api_provider.api_callback
         result_realtime = api_callback['result']['realtime']
         result_hourly = api_callback['result']['hourly']
