@@ -35,6 +35,10 @@ class FullDayTimeSpan(EventTimeSpan):
     def start_date(self):
         return self.__date
 
+    def __eq__(self, other):
+        return type(other) == FullDayTimeSpan and other.get_span() == self.__span \
+            and other.get_date() == self.__date
+
 
 class TwoStepTimeSpan(EventTimeSpan):
     def __init__(self, start: pytime.struct_time, end: pytime.struct_time):
@@ -47,6 +51,10 @@ class TwoStepTimeSpan(EventTimeSpan):
 
     def end_time(self):
         return self.__end
+
+    def __eq__(self, other):
+        return type(other) == TwoStepTimeSpan and other.start_time() == self.__start \
+            and other.end_time() == self.__end
 
 
 class EventType(Enum):
@@ -70,7 +78,9 @@ class Event:
         return self.__time
 
     def __eq__(self, other):
-        return type(other) == Event and other
+        return type(other) == Event and other.get_name() == self.__name \
+            and other.get_time() == self.__time \
+            and other.get_location() == self.__location
 
 
 class CalendarProvider:
