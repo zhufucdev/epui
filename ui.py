@@ -129,7 +129,7 @@ class ViewMeasurement:
 
         if size == ViewSize.MATCH_PARENT:
             _size = (size, size)
-        elif type(size) is float:
+        elif type(size) is float or type(size) is tuple:
             _size = size
         else:
             _size = (width, height)
