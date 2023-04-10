@@ -159,11 +159,16 @@ class GoogleCalendarProvider(CalendarProvider):
         super().__init__(name, max_results)
 
     def __login(self):
-        scope = ['https://www.googleapis.com/auth/calendar.readonly']
-        flow = InstalledAppFlow.from_client_secrets_file(self.__credentials_file, scope)
-        self.__creds = flow.run_local_server(bind_addr=self.__callback_addr, port=self.__callback_port)
-        with cache.open_cache('gcp_token.json', 'w') as token:
-            token.write(self.__creds.to_json())
+        if not self.__creds or not self.__creds.valid:
+            if self.__creds and self.__creds.expired and self.__creds.refresh_token:
+                self.__creds.refresh(Request())
+            else:
+                scope = ['https://www.googleapis.com/auth/calendar.readonly']
+                flow = InstalledAppFlow.from_client_secrets_file(self.__credentials_file, scope)
+                self.__creds = flow.run_local_server(bind_addr=self.__callback_addr, port=self.__callback_port)
+                with cache.open_cache('gcp_token.json', 'w') as token:
+                    token.write(self.__creds.to_json())
+
 
     @staticmethod
     def __parse_event(data: Dict[str, Any]) -> Event:
@@ -186,11 +191,7 @@ class GoogleCalendarProvider(CalendarProvider):
         return Event(data['summary'], location, span)
 
     def get_events(self) -> List[Event]:
-        if not self.__creds or not self.__creds.valid:
-            if self.__creds and self.__creds.expired and self.__creds.refresh_token:
-                self.__creds.refresh(Request())
-            else:
-                self.__login()
+        self.__login()
 
         try:
             raw = self.__service.events().list(
