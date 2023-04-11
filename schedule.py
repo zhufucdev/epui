@@ -29,6 +29,9 @@ class FullDayTimeSpan(EventTimeSpan):
         self.__span = span
         super().__init__(True)
 
+    def __contains__(self, item: pytime.struct_time):
+        return 0 <= pytime.mktime(item) - pytime.mktime(self.__date) <= datetime.timedelta(days=self.__span).seconds
+
     def get_span(self) -> int:
         return self.__span
 
@@ -45,6 +48,11 @@ class TwoStepTimeSpan(EventTimeSpan):
         self.__start = start
         self.__end = end
         super().__init__(False)
+
+    def __contains__(self, item: pytime.struct_time):
+        t_start = pytime.mktime(self.__start)
+        t_end = pytime.mktime(self.__end)
+        return 0 <= pytime.mktime(item) - t_start < t_end - t_start
 
     def start_time(self):
         return self.__start
