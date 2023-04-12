@@ -158,16 +158,16 @@ class GoogleCalendarProvider(CalendarProvider):
         self.__callback_port = callback_port
 
         self.__creds = None
-        if cache.exits('gcp_token.json'):
-            self.__creds = Credentials.from_authorized_user_file(cache.get_file('gcp_token.json'))
-        if not self.__creds or not self.__creds.valid:
-            self.__login()
-
-        self.__service = gcp.build('calendar', 'v3', credentials=self.__creds)
+        self.__service = None
         super().__init__(name, max_results)
 
     def __login(self):
+        if cache.exits('gcp_token.json'):
+            self.__creds = Credentials.from_authorized_user_file(cache.get_file('gcp_token.json'))
+
+        updated = False
         if not self.__creds or not self.__creds.valid:
+            updated = True
             if self.__creds and self.__creds.expired and self.__creds.refresh_token:
                 self.__creds.refresh(Request())
             else:
@@ -176,6 +176,9 @@ class GoogleCalendarProvider(CalendarProvider):
                 self.__creds = flow.run_local_server(bind_addr=self.__callback_addr, port=self.__callback_port)
                 with cache.open_cache('gcp_token.json', 'w') as token:
                     token.write(self.__creds.to_json())
+
+        if not self.__service or updated:
+            self.__service = gcp.build('calendar', 'v3', credentials=self.__creds)
 
 
     @staticmethod
