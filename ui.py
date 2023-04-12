@@ -35,6 +35,7 @@ class Context:
         self.canvas_size = size
         self.scale = scale
         self.__redraw_listener = None
+        self.__panic_handler = None
 
         self.__event_loop = Thread(target=self.__start_event_loop)
 
@@ -47,16 +48,21 @@ class Context:
     def __start_event_loop(self):
         self.__status = EventLoopStatus.RUNNING
         while self.__status == EventLoopStatus.RUNNING:
-            current_requests = self.__requests
-            if current_requests > 0:
-                sleep(RELOAD_AWAIT)
-                if current_requests == self.__requests:
-                    self.__requests = 0
-                    self.redraw_once()
-                    if self.__redraw_listener:
-                        self.__redraw_listener()
-
-            sleep(RELOAD_INTERVAL)
+            try:
+                current_requests = self.__requests
+                if current_requests > 0:
+                    sleep(RELOAD_AWAIT)
+                    if current_requests == self.__requests:
+                        self.__requests = 0
+                        self.redraw_once()
+                        if self.__redraw_listener:
+                            self.__redraw_listener()
+                sleep(RELOAD_INTERVAL)
+            except Exception as e:
+                if self.__panic_handler:
+                    self.__panic_handler(e)
+                else:
+                    raise e
 
     def redraw_once(self):
         self.__main_canvas.rectangle(
@@ -69,6 +75,9 @@ class Context:
     def start(self):
         self.__event_loop.name = 'event_loop'
         self.__event_loop.start()
+
+    def set_panic_handler(self, handler: Callable[[Exception], None]):
+        self.__panic_handler = handler
 
     def destroy(self):
         """
@@ -643,6 +652,7 @@ class ImageView(View):
     """
     A view that shows a static view of image
     """
+
     def __init__(self, context: Context, image: Image.Image | str,
                  fit: ImageContentFit = ImageContentFit.FIT,
                  prefer: ViewMeasurement = ViewMeasurement.default()):
