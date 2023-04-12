@@ -4,6 +4,7 @@ import time as pytime
 from enum import Enum
 from typing import *
 
+import google.auth.exceptions
 import googleapiclient.discovery as gcp
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
@@ -180,7 +181,6 @@ class GoogleCalendarProvider(CalendarProvider):
         if not self.__service or updated:
             self.__service = gcp.build('calendar', 'v3', credentials=self.__creds)
 
-
     @staticmethod
     def __parse_event(data: Dict[str, Any]) -> Event:
         if 'T' in data['start']['dateTime']:
@@ -202,7 +202,17 @@ class GoogleCalendarProvider(CalendarProvider):
         return Event(data['summary'], location, span)
 
     def get_events(self) -> List[Event]:
-        self.__login()
+        try:
+            self.__login()
+        except google.auth.exceptions.TransportError as e:
+            logging.warning(f'Google calendar failed due to network error: {e}')
+            return []
+        except google.auth.exceptions.RefreshError as e:
+            logging.warning(f'Failed to refresh Google calendar: {e}')
+            return []
+        except google.auth.exceptions.GoogleAuthError as e:
+            logging.warning(f'Failed to authorized Google calendar: {e}')
+            return []
 
         try:
             raw = self.__service.events().list(
