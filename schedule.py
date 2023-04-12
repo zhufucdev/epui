@@ -366,7 +366,7 @@ class CalendarView(VGroup):
     def __init__(self, context: Context, provider: CalendarProvider,
                  font_size: int = 16, font: str = TextView.default_font,
                  prefer: ViewMeasurement = ViewMeasurement.default(),
-                 is_splited: bool = False, is_square: bool = False):
+                 is_split: bool = False, is_square: bool = False):
         """
         Creates a CalendarView
         :param context: where the view lives in
@@ -374,12 +374,12 @@ class CalendarView(VGroup):
         :param font_size: font size of the summary and time
         :param font: file path to the desired font family. Only be a TrueTypeFont is acceptable
         :param prefer: preferred layout
-        :param is_splited: if the view should be splited
+        :param is_split: if the view should be split
         """
         self.__provider = provider
         self.__font = font
         self.__font_size = font_size
-        self.__is_splited = is_splited
+        self.__is_split = is_split
         self.__is_square = is_square
         super().__init__(context, prefer=prefer)
         self.refresh()
@@ -404,7 +404,7 @@ class CalendarView(VGroup):
         return CalenderStripeView(self.context,
                                   ev, self.__font_size, self.__font,
                                   ViewMeasurement.default(width=ViewSize.MATCH_PARENT, margin_bottom=4),
-                                  is_splited=self.__is_splited, is_square=self.__is_square)
+                                  is_splited=self.__is_split, is_square=self.__is_square)
 
     def get_font(self):
         """

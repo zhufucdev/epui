@@ -186,7 +186,7 @@ class View:
 
 class Group(View):
     def __init__(self, context: Context, prefer: ViewMeasurement = ViewMeasurement.default()) -> None:
-        self.__children = []
+        self.__children: List[View] = []
         super().__init__(context, prefer)
 
     def add_views(self, *children: View):
