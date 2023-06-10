@@ -421,7 +421,7 @@ class TextView(View):
     default_font = resources.get_file('DejaVuSans')
     default_font_bold = resources.get_file('DejaVuSans-Bold')
 
-    def __init__(self, context: Context, text: str,
+    def __init__(self, context: Context, text: str | Callable[[], str],
                  font=default_font,
                  font_size: float = 10,
                  fill: int = 0,
@@ -441,10 +441,10 @@ class TextView(View):
         super().__init__(context, prefer)
 
     def get_text(self):
-        return self.__text
+        return self.__text() if callable(self.__text) else self.__text
 
-    def set_text(self, text: str):
-        if text != self.__text:
+    def set_text(self, text: str | Callable[[], str]):
+        if text != self.get_text():
             self.__text = text
             self.invalidate()
 
@@ -516,7 +516,7 @@ class TextView(View):
 
         max_width = 0
         height = 0
-        for line in self.__text.splitlines():
+        for line in self.get_text().splitlines():
             bound_box = single_line(line)
             max_width = max(max_width, bound_box[2])
             height += bound_box[3] + 5  # some fixed line margin
@@ -542,7 +542,7 @@ class TextView(View):
 
         canvas.text(
             xy=(x, y),
-            text=self.__text,
+            text=self.get_text(),
             font=self.__get_pil_font(),
             fill=self.__fill,
             stroke_width=self.__stroke * scale,
