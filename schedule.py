@@ -531,7 +531,7 @@ class SquareDateView(Group):
 
         self.__date_textview = TextView(
             context=self.context,
-            text=datetime.datetime.now().strftime('%d'),
+            text=lambda: datetime.datetime.now().strftime('%d'),
             font=self.__font,
             font_size=self.__day_font_size,
             fill=255,
@@ -541,7 +541,7 @@ class SquareDateView(Group):
 
         self.__weekday_textview = TextView(
             context=self.context,
-            text=datetime.datetime.now().strftime('%a'),
+            text=lambda: datetime.datetime.now().strftime('%a'),
             font=self.__font,
             font_size=self.__weekday_font_size,
             fill=255,
@@ -551,7 +551,7 @@ class SquareDateView(Group):
         self.__header = Group(context=self.context, prefer=ViewMeasurement.default(width=ViewSize.MATCH_PARENT))
         month_textview = TextView(
             context=self.context,
-            text=datetime.datetime.now().strftime('%b'),
+            text=lambda: datetime.datetime.now().strftime('%b'),
             font=self.__font,
             font_size=self.__month_font_size,
             fill=255,
@@ -562,10 +562,9 @@ class SquareDateView(Group):
 
         self.__header.add_view(month_textview)
         if self.__current_week_offset is not None:
-            curr_week = int(datetime.datetime.now().strftime('%W'))
             current_week_textview = TextView(
                 context=self.context,
-                text=str(curr_week + self.__current_week_offset) + ' ',
+                text=lambda: str(int(datetime.datetime.now().strftime('%W')) + self.__current_week_offset) + ' ',
                 font=self.__font,
                 font_size=self.__current_week_font_size,
                 fill=255,
