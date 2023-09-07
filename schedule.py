@@ -139,8 +139,8 @@ class GoogleCalendarProvider(CalendarProvider):
     A working implementation of CalendarProvider than involves Google Workspace
     """
 
-    def __init__(self, name: str, credentials_file: str, calendar_id: str = 'primary', max_results: int = 10,
-                 callback_addr: str = 'localhost', callback_port: int = 3891):
+    def __init__(self, name: str = None, credentials_file: str = None, calendar_id: str = 'primary', max_results: int = 10,
+                 callback_addr: str = 'localhost', callback_port: int = 3891, api_key: str = None):
         """
         Creates a GoogleCalendarProvider
         :param name: what to call it
@@ -152,35 +152,41 @@ class GoogleCalendarProvider(CalendarProvider):
         :param callback_addr: where to run a http server for callback, typically accessed
         by the validating browser
         :param callback_port: on which port to run the http server for callback
+        :param api_key: the api key to use. If set, will ignore all OAuth2 stuff and use the api key instead.
+        Note that this method can only access non-private calendars, so make sure the calendar is public
         """
         self.__calendar_id = calendar_id
         self.__credentials_file = credentials_file
         self.__callback_addr = callback_addr
         self.__callback_port = callback_port
+        self.__api_key = api_key
 
         self.__creds = None
         self.__service = None
         super().__init__(name, max_results)
 
     def __login(self):
-        if cache.exits('gcp_token.json'):
-            self.__creds = Credentials.from_authorized_user_file(cache.get_file('gcp_token.json'))
+        if self.__api_key is None:
+            if cache.exits('gcp_token.json'):
+                self.__creds = Credentials.from_authorized_user_file(cache.get_file('gcp_token.json'))
 
-        updated = False
-        if not self.__creds or not self.__creds.valid:
-            updated = True
-            if self.__creds and self.__creds.expired and self.__creds.refresh_token:
-                self.__creds.refresh(Request())
-            else:
-                scope = ['https://www.googleapis.com/auth/calendar.readonly']
-                flow = InstalledAppFlow.from_client_secrets_file(self.__credentials_file, scope)
-                self.__creds = flow.run_local_server(bind_addr=self.__callback_addr, port=self.__callback_port)
-                with cache.open_cache('gcp_token.json', 'w') as token:
-                    token.write(self.__creds.to_json())
+            updated = False
+            if not self.__creds or not self.__creds.valid:
+                updated = True
+                if self.__creds and self.__creds.expired and self.__creds.refresh_token:
+                    self.__creds.refresh(Request())
+                else:
+                    scope = ['https://www.googleapis.com/auth/calendar.readonly']
+                    flow = InstalledAppFlow.from_client_secrets_file(self.__credentials_file, scope)
+                    self.__creds = flow.run_local_server(bind_addr=self.__callback_addr, port=self.__callback_port)
+                    with cache.open_cache('gcp_token.json', 'w') as token:
+                        token.write(self.__creds.to_json())
 
-        if not self.__service or updated:
-            self.__service = gcp.build('calendar', 'v3', credentials=self.__creds)
-
+            if not self.__service or updated:
+                self.__service = gcp.build('calendar', 'v3', credentials=self.__creds)
+        else:
+            self.__service = gcp.build('calendar', 'v3', developerKey=self.__api_key)
+            
     @staticmethod
     def __parse_event(data: Dict[str, Any]) -> Event:
         if 'T' in data['start']['dateTime']:

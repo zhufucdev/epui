@@ -3,3 +3,4 @@
 /proper_res/
 /__pycache__
 *test*
+/venv/
