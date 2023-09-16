@@ -6,7 +6,7 @@ import requests
 
 import resources
 from ui import VGroup, Context, ViewMeasurement, ViewAlignmentHorizontal, ImageView, ViewSize, TextView, HGroup, \
-    Surface, ViewAlignmentVertical, ImageDraw, Image, COLOR_TRANSPARENT, overlay
+    Surface, ViewAlignmentVertical, ImageDraw, Image, COLOR_TRANSPARENT, overlay, View
 from charts import TrendChartsView, ChartsLineType, ChartsConfiguration, Axis, AxisPosition
 
 from enum import Enum
@@ -509,6 +509,7 @@ class WeatherTrendView(TrendChartsView):
         self.__effect = effect
         self.__value = value
         self.refresh()
+        self.__flow = WeatherFlowView(context, provider, effect)
 
     @staticmethod
     def label(w: Weather) -> int:
@@ -516,16 +517,58 @@ class WeatherTrendView(TrendChartsView):
         return w.time.tm_hour - current_time.tm_hour + 24 * (w.time.tm_yday - current_time.tm_yday) + \
             365 * (w.time.tm_year - current_time.tm_year)
 
-    @cache
-    def __get_icon_sample(self) -> VGroup | None:
-        weather = (w for w in self.__provider.get_weather()
-                   if self.__effect == WeatherEffectiveness.ANY or w.effect == self.__effect)
-        try:
-            w = next(weather)
-        except:
-            return
+    def x_axis_size(self) -> float:
+        return self.__flow.content_size()[1]
 
-        return self.__get_icon_view(w)
+    def draw_x_axis(self, canvas: ImageDraw.ImageDraw, bounds: Tuple[int, int], scale: float):
+        canvas.line(((0, self.get_line_width() / 2), (bounds[0], self.get_line_width() / 2)),
+                    fill=self.get_line_fill(),
+                    width=int(self.get_line_width() * scale))
+        self.__flow.actual_measurement = ViewMeasurement.default(size=bounds)
+        self.__flow.draw(canvas, scale)
+
+    def refresh(self):
+        data = [(self.label(w), self.__value(w)) for w in self.__provider.get_weather()
+                if self.__effect == WeatherEffectiveness.ANY or w.effect == self.__effect]
+        self.set_data(data)
+
+
+class WeatherFlowView(View):
+    def __init__(self, context: Context, provider: WeatherProvider, effect: WeatherEffectiveness,
+                 prefer: ViewMeasurement = ViewMeasurement.default()):
+        super().__init__(context, prefer)
+        self.__effect = effect
+        self.__provider = provider
+
+    def content_size(self) -> Tuple[float, float]:
+        sample = self.__get_icon_sample()
+        if sample is None:
+            return 0, 0
+        size = sample.content_size()
+        return size[0], size[1] + 10
+
+    def draw(self, canvas: ImageDraw.ImageDraw, scale: float):
+        sample_size = self.__get_icon_sample()
+        if sample_size is None:
+            return
+        sample_size = sample_size.content_size()
+        data = [w for w in self.__provider.get_weather()
+                if self.__effect == WeatherEffectiveness.ANY or w.effect == self.__effect]
+        bounds = self.actual_measurement.size
+        stacked = int(bounds[0] / (sample_size[1] + 20))
+        span = (bounds[0] - 20) / stacked
+        for i in range(stacked):
+            index = int(i / (stacked - 1) * (len(data) - 1))
+            w = data[index]
+
+            icon_view = self.__get_icon_view(w)
+            icon_content_size = icon_view.content_size()
+            view_canvas = Image.new(
+                'L', icon_content_size, color=COLOR_TRANSPARENT)
+            canvas_draw = ImageDraw.Draw(view_canvas)
+            icon_view.draw(canvas_draw, scale)
+            overlay(canvas._image, view_canvas,
+                    (int(i * span + 20 + span / 2 - icon_content_size[1] / 2), 10))
 
     def __get_icon_view(self, weather: Weather):
         fake_context = Context(None, self.context.canvas_size)
@@ -549,38 +592,13 @@ class WeatherTrendView(TrendChartsView):
         )
         return group
 
-    def x_axis_size(self) -> float:
-        sample = self.__get_icon_sample()
-        if sample is None:
-            return 0
-        return sample.content_size()[1] + 10
-
-    def draw_x_axis(self, canvas: ImageDraw.ImageDraw, bounds: Tuple[int, int], scale: float):
-        sample_size = self.__get_icon_sample()
-        if sample_size is None:
+    @cache
+    def __get_icon_sample(self) -> VGroup | None:
+        weather = (w for w in self.__provider.get_weather()
+                   if self.__effect == WeatherEffectiveness.ANY or w.effect == self.__effect)
+        try:
+            w = next(weather)
+        except:
             return
-        sample_size = sample_size.content_size()
-        canvas.line(((0, self.get_line_width() / 2), (bounds[0], self.get_line_width() / 2)),
-                    fill=self.get_line_fill(),
-                    width=int(self.get_line_width() * scale))
-        data = [w for w in self.__provider.get_weather()
-                if self.__effect == WeatherEffectiveness.ANY or w.effect == self.__effect]
-        stacked = int(bounds[0] / (sample_size[1] + 20))
-        span = (bounds[0] - 20) / stacked
-        for i in range(stacked):
-            index = int(i / (stacked - 1) * (len(data) - 1))
-            w = data[index]
 
-            icon_view = self.__get_icon_view(w)
-            icon_content_size = icon_view.content_size()
-            view_canvas = Image.new(
-                'L', icon_content_size, color=COLOR_TRANSPARENT)
-            canvas_draw = ImageDraw.Draw(view_canvas)
-            icon_view.draw(canvas_draw, scale)
-            overlay(canvas._image, view_canvas,
-                    (int(i * span + 20 + span / 2 - icon_content_size[1] / 2), 10))
-
-    def refresh(self):
-        data = [(self.label(w), self.__value(w)) for w in self.__provider.get_weather()
-                if self.__effect == WeatherEffectiveness.ANY or w.effect == self.__effect]
-        self.set_data(data)
+        return self.__get_icon_view(w)
