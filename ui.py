@@ -250,7 +250,7 @@ class Group(View):
                 if not util.is_positive(position):
                     position = (margin[3], margin[0])
                     if size[0] > self.actual_measurement.size[0]:
-                        size = (self.actual_measurement.size[0], child.size[1])
+                        size = (self.actual_measurement.size[0], size[1])
                     if size[1] > self.actual_measurement.size[1]:
                         size = (size[0], self.actual_measurement.size[1])
 
