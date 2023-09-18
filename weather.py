@@ -1,5 +1,6 @@
 import datetime
 import json
+import zlib
 from functools import cache
 
 import requests
@@ -19,24 +20,55 @@ class Location:
         self.latitude = latitude
         self.longitude = longitude
         self.friendly_name = friendly_name
+        
 
+class Day():
+    """
+    Day represents weather status
+    Check https://github.com/qwd/Icons/blob/a1f39992496337605990a05e5ad04094e0895c03/icons-list.json for reference
+    """
+    def __init__(self, name: Optional[str] = None, code: Optional[str] = None):
+        """Creates a Day
 
-class Day(Enum):
-    CLEAR = 0
-    CLOUDY = 1
-    LIGHTLY_RAINY = 2
-    RAINY = 3
-    HEAVILY_RAINY = 4
-    SNOWY_RAINY = 5
-    LIGHTLY_SNOWY = 6
-    SNOWY = 7
-    HEAVILY_SNOWY = 8
-    HAZY = 9
-    FOGGY = 10
-    DUSTY = 11
-    SANDY = 12
-    WINDY = 13
-    UNKNOWN = 14
+        Args:
+            name (str, optional): Day name. Defaults to None.
+            code (str, optional): Day code. Defaults to None.
+            !! You should provide at least one of name and code
+        """
+        # Initialize icon code
+        if name is None and code is None:
+            raise ValueError('At least one of name and code should be provided')
+        if code is None:
+            code = self.__find_code(name)
+        if name is None:
+            name = self.__find_name(code)
+        
+        self.icon_name = name.replace('_', ' ').capitalize()
+        self.icon_code = code
+        self.icon_image = self.__fetch_image()
+    
+    def __find_name(self, code: str) -> str:
+        # Load map
+        with open(resources.get_file('weather-icons-list'), 'r') as f:
+            reference_map = json.load(f)
+            for i in reference_map:
+                if i['icon_code'] == code:
+                    return i['icon_name']
+            
+            return 'qweather'
+     
+    def __find_code(self, name: str) -> str:
+        # Load map
+        with open(resources.get_file('weather-icons-list'), 'r') as f:
+            reference_map = json.load(f)
+            for i in reference_map:
+                if i['icon_name'] == name:
+                    return i['icon_code']
+        
+            return 'qweather'
+
+    def __fetch_image(self) -> Image.Image:
+        return resources.get_image(f'weather-{self.icon_code}')
 
 
 class TemperatureUnit(Enum):
@@ -56,7 +88,7 @@ class Weather:
     def __init__(self,
                  time: pytime.struct_time = pytime.localtime(),
                  effect: WeatherEffectiveness = WeatherEffectiveness.CURRENT,
-                 day: Day = Day.CLEAR,
+                 day: Day = Day(code='100'),
                  temperature: float = 22,
                  humidity: float = 0.2,
                  pressure: float = 10,
@@ -203,33 +235,33 @@ class CaiYunWeatherProvider(CachedWeatherProvider):
         """
         raw = raw.lower()
         if 'clear' in raw:
-            return Day.CLEAR
+            return Day(code="100")
         elif 'cloudy' in raw:
-            return Day.CLOUDY
+            return Day(code="101")
         elif 'haze' in raw:
-            return Day.HAZY
+            return Day(code="502")
         elif raw == 'light_rain':
-            return Day.LIGHTLY_RAINY
+            return Day(code="305")
         elif raw == 'moderate_rain':
-            return Day.RAINY
+            return Day(code="306")
         elif raw == 'heavy_rain' or raw == 'storm_rain':
-            return Day.HEAVILY_RAINY
+            return Day(code="307")
         elif raw == 'fog':
-            return Day.FOGGY
+            return Day(code="501")
         elif raw == 'light_snow':
-            return Day.LIGHTLY_SNOWY
+            return Day(code="400")
         elif raw == 'moderate_snow':
-            return Day.SNOWY
+            return Day(code="401")
         elif raw == 'heavy_snow' or raw == 'storm_snow':
-            return Day.HEAVILY_SNOWY
+            return Day(code="402")
         elif raw == 'dust':
-            return Day.DUSTY
+            return Day(code="504")
         elif raw == 'sand':
-            return Day.SANDY
+            return Day(code="503")
         elif raw == 'wind':
-            return Day.WINDY
+            return Day(code="2051")
         else:
-            return Day.UNKNOWN
+            return Day(code='qweather')
 
     def invalidate(self) -> List[Weather]:
         self.__api_provider.invalidate()
@@ -286,36 +318,6 @@ class CaiYunWeatherProvider(CachedWeatherProvider):
         return [current_weather] + hourly_weather + daily_weather
 
 
-def get_weather_icon(day: Day):
-    if day == Day.CLEAR:
-        return resources.get_image_tint('weather-sunny', 100)
-    elif day == Day.CLOUDY:
-        return resources.get_image('weather-cloudy')
-    elif day == Day.RAINY or day == Day.LIGHTLY_RAINY:
-        return resources.get_image('weather-rainy')
-    elif day == Day.HEAVILY_RAINY:
-        return resources.get_image('weather-pouring')
-    elif day == Day.SNOWY or day == Day.LIGHTLY_SNOWY:
-        return resources.get_image('weather-snowy')
-    elif day == Day.HEAVILY_SNOWY:
-        return resources.get_image('weather-snowy-heavy')
-    elif day == Day.SNOWY_RAINY:
-        return resources.get_image('weather-snowy-rainy')
-    elif day == Day.WINDY:
-        return resources.get_image('weather-windy')
-    elif day == Day.HAZY:
-        return resources.get_image('weather-hazy')
-    elif day == Day.FOGGY:
-        return resources.get_image('weather-fog')
-    elif day == Day.DUSTY:
-        return resources.get_image('weather-dust')
-    else:
-        return resources.get_image('weather-alert')
-
-
-def get_day_name(day: Day):
-    return day.name.replace('_', ' ').capitalize()
-
 
 def get_unit_name(unit: TemperatureUnit):
     if unit == TemperatureUnit.CELSIUS:
@@ -364,13 +366,13 @@ class LargeWeatherView(HGroup):
         title_group = VGroup(
             self.context, alignment=ViewAlignmentHorizontal.RIGHT)
         self.__icon_view = ImageView(self.context,
-                                     image=get_weather_icon(weather.day),
+                                     image=weather.day.icon_image,
                                      prefer=ViewMeasurement.default(
                                          width=100,
                                          height=100
                                      ))
         self.__day_label_view = TextView(self.context,
-                                         text=get_day_name(weather.day),
+                                         text=weather.day.icon_name,
                                          font=TextView.default_font_bold,
                                          font_size=36)
         self.__subtitle_label_view = TextView(self.context,
@@ -402,8 +404,8 @@ class LargeWeatherView(HGroup):
         if self.__icon_view is None:
             self.__add_views(weather)
         else:
-            self.__icon_view.set_image(get_weather_icon(weather.day))
-            self.__day_label_view.set_text(get_day_name(weather.day))
+            self.__icon_view.set_image(weather.day.icon_image)
+            self.__day_label_view.set_text(weather.day.icon_name)
             self.__subtitle_label_view.set_text(
                 self.__get_detailed_label(weather))
 
@@ -438,13 +440,13 @@ class MiniWeatherView(VGroup):
             self.refresh()
 
     def __get_label(self, weather: Weather) -> str:
-        return f'{get_day_name(weather.day)}\n' \
+        return f'{weather.day.icon_name}\n' \
                f'{weather.temperature} {get_unit_name(self.__provider.get_temperature_unit())}'
 
     def __add_views(self, weather: Weather):
         self.__icon_view = ImageView(
             self.context,
-            image=get_weather_icon(weather.day),
+            image=weather.day.icon_image,
             prefer=ViewMeasurement.default(width=32, height=32)
         )
         self.__label = TextView(
@@ -460,8 +462,8 @@ class MiniWeatherView(VGroup):
         if self.__icon_view is None:
             self.__add_views(weather)
         else:
-            self.__icon_view.set_image(get_weather_icon(weather.day))
-            self.__label.set_text(get_day_name(weather.day))
+            self.__icon_view.set_image(weather.day.icon_image)
+            self.__label.set_text(weather.day.icon_name)
 
 
 class WeatherTrendView(TrendChartsView):

@@ -7,7 +7,6 @@ cached = {}
 resources_dir = [f'{os.path.abspath(os.path.dirname(__file__))}/resources']
 COLOR_TRANSPARENT = 254
 
-
 def get_file(name: str):
     for _dir in resources_dir:
         candidates = (os.path.join(_dir, f) for f in os.listdir(_dir) if f.startswith(name))
