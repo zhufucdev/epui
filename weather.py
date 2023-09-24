@@ -604,3 +604,76 @@ class WeatherFlowView(View):
             return
 
         return self.__get_icon_view(w)
+
+class HeFengAPIProvider():
+    """
+    A HeFeng API provider, which provides API access to HeFeng
+    """
+
+    def __init__(self, api_key: str, location: Location, lang: str = 'zh', unit: str = 'm'):
+        """Creates a HeFeng API provider
+
+        Args:
+            api_key (str): Your API key. Obtain it from https://console.qweather.com/
+            location (Location): Where are you located
+            lang (str): Language of the response (en/zh) . Default to Chinese
+            unit (str): Unit of the response (m/k) . Default to metric
+        """
+        self.__api_key = api_key
+        self.__unit = unit
+        self.__lang = lang
+        self.location = location
+        self.hourly_api_callback = None
+        self.minutely_api_callback = None
+        
+    def __construct_hourly_api_url(self):
+        return f'https://devapi.qweather.com/v7/weather/24h?'\
+               f'key={self.__api_key}&'\
+               f'location={self.location.latitude},{self.location.longitude}&'\
+               f'lang={self.__lang}'\
+               f'unit={self.__unit}'
+    
+    def __construct_minutely_api_url(self):
+        return f'https://devapi.qweather.com/v7/minutely/5m?'\
+               f'key={self.__api_key}&'\
+               f'location={self.location.latitude},{self.location.longitude}&'\
+               f'lang={self.__lang}'
+    
+    def invalidate(self):
+        # Get hourly weather
+        response = requests.get(self.__construct_hourly_api_url())
+        if not response.ok:
+            raise IOError('HeFeng API malfunctioned')
+        raw_text = zlib.decompress(response.text, 16+zlib.MAX_WBITS)
+        self.hourly_api_callback = json.loads(raw_text)
+        
+        # Get minutely weather
+        response = requests.get(self.__construct_minutely_api_url())
+        if not response.ok:
+            raise IOError('HeFeng API malfunctioned')
+        raw_text = zlib.decompress(response.text, 16+zlib.MAX_WBITS)
+        self.minutely_api_callback = json.loads(raw_text)
+
+class HeFengWeatherProvider(CachedWeatherProvider):
+    """
+    A implementation of HeFeng Weather API.
+    Args:
+        CachedWeatherProvider (_type_): _description_
+    """
+    def __init__(self, hefeng_api_provider: HeFengAPIProvider):
+        """Creates a HeFeng Weather provider
+
+        Args:
+            hefeng_api_provider (HeFengAPIProvider): Hefeng API Provider
+        """
+        self.__api_provider = hefeng_api_provider
+        super().__init__(self.__api_provider.location, TemperatureUnit.CELSIUS, cache_invalidate_interval)
+    
+    @staticmethod
+    def __get_day(code: str) -> Day:
+        return Day(code= code)
+    
+    def invalidate(self) -> List[Weather]:
+        self.__api_provider.invalidate()
+        api_callback = self.__api_provider.hourly_api_callback
+        result
