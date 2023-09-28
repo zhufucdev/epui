@@ -611,14 +611,16 @@ class HeFengAPIProvider():
     """
 
     def __init__(self, api_key: str, location: Location, lang: str = 'zh', unit: str = 'm',
-                 max_hourly_callback_amount: int = 24):
+                 max_hourly_callback_amount: int = 24, i_am_mr_beast: bool = False, location_id: str | None = None):
         """Creates a HeFeng API provider
 
         Args:
             api_key (str): Your API key. Obtain it from https://console.qweather.com/
             location (Location): Where are you located
+            location_id (str | None): Location ID. If set, API query will use it. Check https://dev.qweather.com/en/docs/resource/glossary/#locationid
             lang (str): Language of the response (en/zh) . Default to Chinese
             unit (str): Unit of the response (m/k) . Default to metric
+            i_am_mr_beast (bool): You are Mr. Beast. If you are rich then use paid api. Default to False
         """
         self.__api_key = api_key
         self.__unit = unit
@@ -628,26 +630,46 @@ class HeFengAPIProvider():
         self.hourly_api_callback = None
         self.minutely_api_callback = None
         self.current_api_callback = None
+        self.indices_api_callback = None
+        
+        if location_id is not None:
+            self.__location = location_id
+        else:
+            self.__location = f'{self.location.longitude},{self.location.latitude}'
+            
+        
+        if i_am_mr_beast:
+            self.__api_host = 'https://api.qweather.com'
+        else:
+            self.__api_host = 'https://devapi.qweather.com'
+        
         
     def __construct_hourly_api_url(self):
-        return f'https://devapi.qweather.com/v7/weather/24h?'\
+        return f'{self.__api_host}/v7/weather/24h?'\
                f'key={self.__api_key}&'\
-               f'location={self.location.longitude},{self.location.latitude}&'\
+               f'location={self.__location}&'\
                f'lang={self.__lang}&'\
                f'unit={self.__unit}'
     
     def __construct_minutely_api_url(self):
-        return f'https://devapi.qweather.com/v7/minutely/5m?'\
+        return f'{self.__api_host}/v7/minutely/5m?'\
                f'key={self.__api_key}&'\
-               f'location={self.location.longitude},{self.location.latitude}&'\
+               f'location={self.__location}&'\
                f'lang={self.__lang}'
     
     def __construct_current_api_url(self):
-        return f'https://devapi.qweather.com/v7/weather/now?'\
+        return f'{self.__api_host}/v7/weather/now?'\
                f'key={self.__api_key}&'\
-               f'location={self.location.longitude},{self.location.latitude}&'\
+               f'location={self.__location}&'\
                f'lang={self.__lang}&'\
                f'unit={self.__unit}'
+               
+    def __construct_indice_api_url(self):
+        return f'{self.__api_host}/v7/indices/1d?'\
+               f'key={self.__api_key}&'\
+               f'location={self.__location}&'\
+               f'lang={self.__lang}&'\
+               f'type=0'
     
     def invalidate(self):
         # Get hourly weather
@@ -673,6 +695,14 @@ class HeFengAPIProvider():
         self.minutely_api_callback = json.loads(response.text)
         if self.minutely_api_callback['code'] != '200':
             raise IOError('HeFeng API returned ' + self.minutely_api_callback['code'])
+        
+        # Get indices
+        response = requests.get(self.__construct_indice_api_url())
+        if not response.ok:
+            raise IOError('HeFeng API malfunctioned')
+        self.indices_api_callback = json.loads(response.text)
+        if self.indices_api_callback['code'] != '200':
+            raise IOError('HeFeng API returned ' + self.indices_api_callback['code'])
 
 class HeFengWeatherProvider(CachedWeatherProvider):
     """
@@ -697,8 +727,16 @@ class HeFengWeatherProvider(CachedWeatherProvider):
         self.__api_provider.invalidate()
         api_callback = self.__api_provider.hourly_api_callback
         current_api_callback = self.__api_provider.current_api_callback
+        indices_api_callback = self.__api_provider.indices_api_callback
         result = api_callback['hourly']
         current_result = current_api_callback['now']
+        
+        # Get UV Index from indices API
+        uv_index = -1
+        for something in indices_api_callback['daily']:
+            if something['type'] == '5':
+                uv_index = int(something['level'])
+                break
         
         # Parses one weather
         def parse(source: Dict, effect: WeatherEffectiveness) -> Weather:
@@ -718,6 +756,7 @@ class HeFengWeatherProvider(CachedWeatherProvider):
                 temperature=temperature,
                 pressure=pressure,
                 day=self.__get_day(day_code),
+                uv_index=uv_index,
             )
         
         # Parse current weather using minutely weather
