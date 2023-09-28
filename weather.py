@@ -43,7 +43,7 @@ class Day():
         if name is None:
             name = self.__find_name(code)
         
-        self.icon_name = name.replace('_', ' ').capitalize()
+        self.icon_name = name.replace('-', ' ').capitalize()
         self.icon_code = code
         self.icon_image = self.__fetch_image()
     
