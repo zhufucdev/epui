@@ -8,12 +8,11 @@ resources_dir = [f'{os.path.abspath(os.path.dirname(__file__))}/resources']
 COLOR_TRANSPARENT = 254
 
 def get_file(name: str):
-    for _dir in resources_dir:
-        candidates = (os.path.join(_dir, f) for f in os.listdir(_dir) if f.startswith(name))
-        try:
-            return next(candidates)
-        except:
-            pass
+    for root, dirs, files in os.walk(resources_dir):
+        for file in files:
+            if file.startswith(name):
+                return os.path.join(root, file)
+    return None
 
 
 def get_image(name: str) -> Image.Image:
