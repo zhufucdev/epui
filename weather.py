@@ -122,7 +122,7 @@ class HeFengDayProvider(DayProvider):
             reference_map = json.load(f)
             for i in reference_map:
                 if i['icon_code'] == code:
-                    return i['icon_name']
+                    return i['icon_name'].replace('-', ' ').capitalize()
             
             return "Unknown"
 
