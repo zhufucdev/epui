@@ -14,61 +14,117 @@ from enum import Enum
 import time as pytime
 from typing import *
 
-
 class Location:
     def __init__(self, latitude: float, longitude: float, friendly_name: str = None):
         self.latitude = latitude
         self.longitude = longitude
         self.friendly_name = friendly_name
         
-
-class Day():
+class Day(Enum):
+    """Day is a common class for weather status.
     """
-    Day represents weather status
-    Check https://github.com/qwd/Icons/blob/a1f39992496337605990a05e5ad04094e0895c03/icons-list.json for reference
+    CLEAR = 0
+    CLOUDY = 1
+    LIGHTLY_RAINY = 2
+    RAINY = 3
+    HEAVILY_RAINY = 4
+    SNOWY_RAINY = 5
+    LIGHTLY_SNOWY = 6
+    SNOWY = 7
+    HEAVILY_SNOWY = 8
+    HAZY = 9
+    FOGGY = 10
+    DUSTY = 11
+    SANDY = 12
+    WINDY = 13
+    UNKNOWN = 14
+    
+    
+class DayProvider():
+    """A provider that provides day information for weather
+    It normally provides a icon and a name for a day
     """
-    def __init__(self, name: Optional[str] = None, code: Optional[str] = None):
-        """Creates a Day
+    def __init__(self):
+        pass
+    def get_icon(day: Day) -> Image.Image:
+        pass
+    def get_name(day: Day) -> str:
+        pass
+    
+class HeFengDay():
+    """HeFengDay is a day class for HeFeng weather status.
+    """
+    def __init__(self, code: str | None = None):
+        """Creates a HeFengDay
 
         Args:
-            name (str, optional): Day name. Defaults to None.
-            code (str, optional): Day code. Defaults to None.
-            !! You should provide at least one of name and code
+            code (str | None, optional): The HeFeng weather status id. Defaults to None.
         """
-        # Initialize icon code
-        if name is None and code is None:
-            raise ValueError('At least one of name and code should be provided')
-        if code is None:
-            code = self.__find_code(name)
-        if name is None:
-            name = self.__find_name(code)
-        
-        self.icon_name = name.replace('-', ' ').capitalize()
-        self.icon_code = code
-        self.icon_image = self.__fetch_image()
+        self.code = code
+        super().__init__()
+
+class HeFengDayProvider(DayProvider):
+    """DayProvider that uses HeFeng icon library, and is compactible with HeFengAPI
+    """
+    def __init__(self):
+        super().__init__()
     
-    def __find_name(self, code: str) -> str:
-        # Load map
-        with open(resources.get_file('weather-icons-list'), 'r') as f:
+    @staticmethod
+    def get_name(day: Day | HeFengDay) -> str:
+        if type(day) is HeFengDay:
+            return HeFengDayProvider().get_name_by_code(day.code)
+        else:
+            return day.name.replace('_', ' ').capitalize()
+    
+    @staticmethod
+    def get_icon(day: Day | HeFengDay) -> Image.Image:
+        if type(day) is HeFengDay:
+            return HeFengDayProvider().get_icon_by_code(day.code)
+        else:
+            if day == Day.CLEAR:
+                icon_code = "qweather-100"
+            elif day == Day.CLOUDY:
+                icon_code = "qweather-101"
+            elif day == Day.LIGHTLY_RAINY:
+                icon_code = "qweather-305"
+            elif day == Day.RAINY:
+                icon_code = "qweather-307"
+            elif day == Day.SNOWY_RAINY:
+                icon_code = "qweather-405"
+            elif day == Day.LIGHTLY_SNOWY:
+                icon_code = "qweather-400"
+            elif day == Day.SNOWY:
+                icon_code = "qweather-401"
+            elif day == Day.HEAVILY_SNOWY:
+                icon_code = "qweather-402"
+            elif day == Day.HAZY:
+                icon_code = "qweather-502"
+            elif day == Day.FOGGY:
+                icon_code = "qweather-501"
+            elif day == Day.DUSTY:
+                icon_code = "qweather-504"
+            elif day == Day.SANDY:
+                icon_code = "qweather-503"
+            elif day == Day.WINDY:
+                icon_code = "qweather-2105"
+            else:
+                icon_code = "unknown"
+            return resources.get_image("weather-" + icon_code)
+    
+    @staticmethod
+    def get_icon_by_code(icon_code: str) -> Image.Image:
+        return resources.get_image("weather-qweather-" + icon_code)
+    
+    @staticmethod
+    def get_name_by_code(code: str) -> str:
+        # Load json map
+        with open(resources.get_file('weather-qweather-index'), 'r') as f:
             reference_map = json.load(f)
             for i in reference_map:
                 if i['icon_code'] == code:
                     return i['icon_name']
             
-            return 'qweather'
-     
-    def __find_code(self, name: str) -> str:
-        # Load map
-        with open(resources.get_file('weather-icons-list'), 'r') as f:
-            reference_map = json.load(f)
-            for i in reference_map:
-                if i['icon_name'] == name:
-                    return i['icon_code']
-        
-            return 'qweather'
-
-    def __fetch_image(self) -> Image.Image:
-        return resources.get_image(f'weather-{self.icon_code}')
+            return "Unknown"
 
 
 class TemperatureUnit(Enum):
@@ -88,7 +144,7 @@ class Weather:
     def __init__(self,
                  time: pytime.struct_time = pytime.localtime(),
                  effect: WeatherEffectiveness = WeatherEffectiveness.CURRENT,
-                 day: Day = Day(code='100'),
+                 day: Day = Day.CLEAR,
                  temperature: float = 22,
                  humidity: float = 0.2,
                  pressure: float = 10,
@@ -130,7 +186,6 @@ class WeatherProvider:
          length of which is undefined
         """
         pass
-
 
 class CachedWeatherProvider(WeatherProvider):
     """
@@ -235,33 +290,33 @@ class CaiYunWeatherProvider(CachedWeatherProvider):
         """
         raw = raw.lower()
         if 'clear' in raw:
-            return Day(code="100")
+            return Day.CLEAR
         elif 'cloudy' in raw:
-            return Day(code="101")
+            return Day.CLOUDY
         elif 'haze' in raw:
-            return Day(code="502")
+            return Day.HAZY
         elif raw == 'light_rain':
-            return Day(code="305")
+            return Day.LIGHTLY_RAINY
         elif raw == 'moderate_rain':
-            return Day(code="306")
+            return Day.RAINY
         elif raw == 'heavy_rain' or raw == 'storm_rain':
-            return Day(code="307")
+            return Day.HEAVILY_RAINY
         elif raw == 'fog':
-            return Day(code="501")
+            return Day.FOGGY
         elif raw == 'light_snow':
-            return Day(code="400")
+            return Day.LIGHTLY_SNOWY
         elif raw == 'moderate_snow':
-            return Day(code="401")
+            return Day.SNOWY
         elif raw == 'heavy_snow' or raw == 'storm_snow':
-            return Day(code="402")
+            return Day.HEAVILY_SNOWY
         elif raw == 'dust':
-            return Day(code="504")
+            return Day.DUSTY
         elif raw == 'sand':
-            return Day(code="503")
+            return Day.SANDY
         elif raw == 'wind':
-            return Day(code="2051")
+            return Day.WINDY
         else:
-            return Day(code='qweather')
+            return Day.UNKNOWN
 
     def invalidate(self) -> List[Weather]:
         self.__api_provider.invalidate()
@@ -331,8 +386,10 @@ def get_unit_name(unit: TemperatureUnit):
 class LargeWeatherView(HGroup):
     def __init__(self, context: Context, provider: WeatherProvider,
                  effect: WeatherEffectiveness = WeatherEffectiveness.CURRENT,
-                 prefer: ViewMeasurement = ViewMeasurement.default()):
+                 prefer: ViewMeasurement = ViewMeasurement.default(),
+                 day_provider: DayProvider = HeFengDayProvider()):
         super().__init__(context, alignment=ViewAlignmentVertical.CENTER, prefer=prefer)
+        self.__day_provider = day_provider
         self.__provider = provider
         self.__effect = effect
         self.__icon_view = None
@@ -366,13 +423,13 @@ class LargeWeatherView(HGroup):
         title_group = VGroup(
             self.context, alignment=ViewAlignmentHorizontal.RIGHT)
         self.__icon_view = ImageView(self.context,
-                                     image=weather.day.icon_image,
+                                     image=self.__day_provider.get_icon(weather.day),
                                      prefer=ViewMeasurement.default(
                                          width=100,
                                          height=100
                                      ))
         self.__day_label_view = TextView(self.context,
-                                         text=weather.day.icon_name,
+                                         text=self.__day_provider.get_name(weather.day),
                                          font=TextView.default_font_bold,
                                          font_size=36)
         self.__subtitle_label_view = TextView(self.context,
@@ -415,7 +472,9 @@ class LargeWeatherView(HGroup):
 class MiniWeatherView(VGroup):
     def __init__(self, context: Context, provider: WeatherProvider,
                  effect: WeatherEffectiveness = WeatherEffectiveness.CURRENT,
-                 prefer: ViewMeasurement = ViewMeasurement.default()):
+                 prefer: ViewMeasurement = ViewMeasurement.default(),
+                 day_provider: DayProvider = HeFengDayProvider()):
+        self.__day_provider = day_provider
         self.__provider = provider
         self.__effect = effect
         self.__icon_view = None
@@ -440,13 +499,13 @@ class MiniWeatherView(VGroup):
             self.refresh()
 
     def __get_label(self, weather: Weather) -> str:
-        return f'{weather.day.icon_name}\n' \
+        return f'{self.__day_provider.get_name(weather.day)}\n' \
                f'{weather.temperature} {get_unit_name(self.__provider.get_temperature_unit())}'
 
     def __add_views(self, weather: Weather):
         self.__icon_view = ImageView(
             self.context,
-            image=weather.day.icon_image,
+            image=self.__day_provider.get_icon(weather.day),
             prefer=ViewMeasurement.default(width=32, height=32)
         )
         self.__label = TextView(
@@ -477,7 +536,8 @@ class WeatherTrendView(TrendChartsView):
                  line_fill: int = 0, line_width: float = 2,
                  prefer: ViewMeasurement = ViewMeasurement.default(),
                  line_type: ChartsLineType = ChartsLineType.BEZIER_CURVE,
-                 charts_configuration: ChartsConfiguration = None):
+                 charts_configuration: ChartsConfiguration = None,
+                 day_provider: DayProvider = HeFengDayProvider()):
         """
         Create a WeatherTrendView
         :param context: where the view lives in
@@ -511,7 +571,7 @@ class WeatherTrendView(TrendChartsView):
         self.__effect = effect
         self.__value = value
         self.refresh()
-        self.__flow = WeatherFlowView(context, provider, effect)
+        self.__flow = WeatherFlowView(context, provider, effect, day_provider)
 
     @staticmethod
     def label(w: Weather) -> int:
@@ -537,8 +597,9 @@ class WeatherTrendView(TrendChartsView):
 
 class WeatherFlowView(View):
     def __init__(self, context: Context, provider: WeatherProvider, effect: WeatherEffectiveness,
-                 prefer: ViewMeasurement = ViewMeasurement.default()):
+                 prefer: ViewMeasurement = ViewMeasurement.default(), day_provider: DayProvider = HeFengDayProvider()):
         super().__init__(context, prefer)
+        self.__day_provider = day_provider
         self.__effect = effect
         self.__provider = provider
 
@@ -584,7 +645,8 @@ class WeatherFlowView(View):
         )
         view = MiniWeatherView(
             fake_context, DirectWeatherProvider(weather),
-            effect=WeatherEffectiveness.ANY
+            effect=WeatherEffectiveness.ANY,
+            day_provider=self.__day_provider
         )
         group.add_views(time, view)
         size = group.content_size()
@@ -710,18 +772,52 @@ class HeFengWeatherProvider(CachedWeatherProvider):
     Args:
         CachedWeatherProvider (_type_): _description_
     """
-    def __init__(self, hefeng_api_provider: HeFengAPIProvider):
+    def __init__(self, hefeng_api_provider: HeFengAPIProvider,
+                 use_hefeng_day: bool = True):
         """Creates a HeFeng Weather provider
 
         Args:
             hefeng_api_provider (HeFengAPIProvider): Hefeng API Provider
+            use_hefeng_day (bool): Output HeFeng specific day format, which can be directly used
+        in hefeng icon. Default to True
         """
+        self.__use_hefeng_day = use_hefeng_day
         self.__api_provider = hefeng_api_provider
         super().__init__(self.__api_provider.location, TemperatureUnit.CELSIUS)
     
-    @staticmethod
-    def __get_day(code: str) -> Day:
-        return Day(code=code)
+    def __get_day(self, code: str) -> Day | HeFengDay:
+        if self.__use_hefeng_day:
+            return HeFengDay(code=code)
+        else:
+            if code == "100":
+                return Day.CLEAR
+            elif code == "101":
+                return Day.CLOUDY
+            elif code == "305":
+                return Day.LIGHTLY_RAINY
+            elif code == "307":
+                return Day.RAINY
+            elif code == "405":
+                return Day.SNOWY_RAINY
+            elif code == "400":
+                return Day.LIGHTLY_SNOWY
+            elif code == "401":
+                return Day.SNOWY
+            elif code == "402":
+                return Day.HEAVILY_SNOWY
+            elif code == "502":
+                return Day.HAZY
+            elif code == "501":
+                return Day.FOGGY
+            elif code == "504":
+                return Day.DUSTY
+            elif code == "503":
+                return Day.SANDY
+            elif code == "2105":
+                return Day.WINDY
+            else:
+                return Day.UNKNOWN
+                
     
     def invalidate(self) -> List[Weather]:
         self.__api_provider.invalidate()
