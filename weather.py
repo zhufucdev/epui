@@ -1,6 +1,5 @@
 import datetime
 import json
-import zlib
 from functools import cache
 
 import requests
@@ -14,12 +13,14 @@ from enum import Enum
 import time as pytime
 from typing import *
 
+
 class Location:
     def __init__(self, latitude: float, longitude: float, friendly_name: str = None):
         self.latitude = latitude
         self.longitude = longitude
         self.friendly_name = friendly_name
-        
+
+
 class Day(Enum):
     """Day is a common class for weather status.
     """
@@ -38,93 +39,80 @@ class Day(Enum):
     SANDY = 12
     WINDY = 13
     UNKNOWN = 14
-    
-    
-class DayProvider():
-    """A provider that provides day information for weather
-    It normally provides a icon and a name for a day
+
+
+class DayProvider:
+    """A provider that provides display information for weather
+    It normally provides an icon and a name for a day
     """
+
     def __init__(self):
         pass
-    def get_icon(day: Day) -> Image.Image:
-        pass
-    def get_name(day: Day) -> str:
-        pass
-    
-class HeFengDay():
-    """HeFengDay is a day class for HeFeng weather status.
-    """
-    def __init__(self, code: str | None = None):
-        """Creates a HeFengDay
 
-        Args:
-            code (str | None, optional): The HeFeng weather status id. Defaults to None.
-        """
-        self.code = code
+    def get_icon(self) -> Image.Image:
+        pass
+
+    def get_name(self) -> str:
+        pass
+
+
+class CommonDayProvider(DayProvider):
+    """A DayProvider compatible with the common weather icon library"""
+
+    def __init__(self, day: Day):
         super().__init__()
+        self.day = day
+
+    def get_icon(self) -> Image.Image:
+        if self.day == Day.CLEAR:
+            return resources.get_image_tint('weather-sunny', 100)
+        elif self.day == Day.CLOUDY:
+            return resources.get_image('weather-cloudy')
+        elif self.day == Day.RAINY or self.day == Day.LIGHTLY_RAINY:
+            return resources.get_image('weather-rainy')
+        elif self.day == Day.HEAVILY_RAINY:
+            return resources.get_image('weather-pouring')
+        elif self.day == Day.SNOWY or self.day == Day.LIGHTLY_SNOWY:
+            return resources.get_image('weather-snowy')
+        elif self.day == Day.HEAVILY_SNOWY:
+            return resources.get_image('weather-snowy-heavy')
+        elif self.day == Day.SNOWY_RAINY:
+            return resources.get_image('weather-snowy-rainy')
+        elif self.day == Day.WINDY:
+            return resources.get_image('weather-windy')
+        elif self.day == Day.HAZY:
+            return resources.get_image('weather-hazy')
+        elif self.day == Day.FOGGY:
+            return resources.get_image('weather-fog')
+        elif self.day == Day.DUSTY:
+            return resources.get_image('weather-dust')
+        else:
+            return resources.get_image('weather-alert')
+
+    def get_name(self) -> str:
+        return self.day.name.capitalize().replace('_', ' ')
+
 
 class HeFengDayProvider(DayProvider):
-    """DayProvider that uses HeFeng icon library, and is compactible with HeFengAPI
+    """A DayProvider that uses HeFeng icon library, and is compatible with HeFengAPI
     """
-    def __init__(self):
+
+    def __init__(self, code: str):
         super().__init__()
-    
-    @staticmethod
-    def get_name(day: Day | HeFengDay) -> str:
-        if type(day) is HeFengDay:
-            return HeFengDayProvider().get_name_by_code(day.code)
-        else:
-            return day.name.replace('_', ' ').capitalize()
-    
-    @staticmethod
-    def get_icon(day: Day | HeFengDay) -> Image.Image:
-        if type(day) is HeFengDay:
-            return HeFengDayProvider().get_icon_by_code(day.code)
-        else:
-            if day == Day.CLEAR:
-                icon_code = "qweather-100"
-            elif day == Day.CLOUDY:
-                icon_code = "qweather-101"
-            elif day == Day.LIGHTLY_RAINY:
-                icon_code = "qweather-305"
-            elif day == Day.RAINY:
-                icon_code = "qweather-307"
-            elif day == Day.SNOWY_RAINY:
-                icon_code = "qweather-405"
-            elif day == Day.LIGHTLY_SNOWY:
-                icon_code = "qweather-400"
-            elif day == Day.SNOWY:
-                icon_code = "qweather-401"
-            elif day == Day.HEAVILY_SNOWY:
-                icon_code = "qweather-402"
-            elif day == Day.HAZY:
-                icon_code = "qweather-502"
-            elif day == Day.FOGGY:
-                icon_code = "qweather-501"
-            elif day == Day.DUSTY:
-                icon_code = "qweather-504"
-            elif day == Day.SANDY:
-                icon_code = "qweather-503"
-            elif day == Day.WINDY:
-                icon_code = "qweather-2105"
-            else:
-                icon_code = "unknown"
-            return resources.get_image("weather-" + icon_code)
-    
-    @staticmethod
-    def get_icon_by_code(icon_code: str) -> Image.Image:
-        return resources.get_image("weather-qweather-" + icon_code)
-    
-    @staticmethod
-    def get_name_by_code(code: str) -> str:
+        self.code = code
+
+    def get_name(self) -> str:
         # Load json map
         with open(resources.get_file('weather-qweather-index'), 'r') as f:
             reference_map = json.load(f)
             for i in reference_map:
-                if i['icon_code'] == code:
+                if i['icon_code'] == self.code:
                     return i['icon_name'].replace('-', ' ').capitalize()
-            
+
             return "Unknown"
+
+    def get_icon(self) -> Image.Image:
+        return resources.get_image("weather-qweather-" + self.code)
 
 
 class TemperatureUnit(Enum):
@@ -144,7 +132,7 @@ class Weather:
     def __init__(self,
                  time: pytime.struct_time = pytime.localtime(),
                  effect: WeatherEffectiveness = WeatherEffectiveness.CURRENT,
-                 day: Day = Day.CLEAR,
+                 day: DayProvider = CommonDayProvider(Day.CLEAR),
                  temperature: float = 22,
                  humidity: float = 0.2,
                  pressure: float = 10,
@@ -186,6 +174,7 @@ class WeatherProvider:
          length of which is undefined
         """
         pass
+
 
 class CachedWeatherProvider(WeatherProvider):
     """
@@ -328,7 +317,7 @@ class CaiYunWeatherProvider(CachedWeatherProvider):
             time=pytime.localtime(),
             effect=WeatherEffectiveness.CURRENT,
             temperature=result_realtime['temperature'],
-            day=self.__caiyun_get_day(result_realtime['skycon']),
+            day=CommonDayProvider(self.__caiyun_get_day(result_realtime['skycon'])),
             humidity=result_realtime['humidity'],
             pressure=result_realtime['pressure'] / 100,
             uv_index=int(result_realtime['life_index']['ultraviolet']['index'])
@@ -362,7 +351,7 @@ class CaiYunWeatherProvider(CachedWeatherProvider):
                 pressure = pick(source['pressure'][i])
                 target_set.append(
                     Weather(
-                        time, effect, self.__caiyun_get_day(sky_con),
+                        time, effect, CommonDayProvider(self.__caiyun_get_day(sky_con)),
                         temperature, humidity, pressure, -1
                     )
                 )
@@ -372,6 +361,211 @@ class CaiYunWeatherProvider(CachedWeatherProvider):
 
         return [current_weather] + hourly_weather + daily_weather
 
+
+class HeFengLanguage(Enum):
+    Chinese = 'zh'
+    English = 'en'
+
+
+class HeFengUnit(Enum):
+    Metric = 'm'
+    Imperial = 'i'
+
+
+class HeFengAPIProvider:
+    """
+    A HeFeng API provider, which provides API access to HeFeng
+    """
+
+    def __init__(self, api_key: str, location: Location, lang: HeFengLanguage = HeFengLanguage.Chinese,
+                 unit: HeFengUnit = HeFengUnit.Metric, max_hourly_callback_amount: int = 24,
+                 i_am_mr_beast: bool = False, location_id: str | None = None):
+        """Creates a HeFeng API provider
+
+        Args:
+            api_key (str): Your API key. Obtain it from https://console.qweather.com/
+            location (Location): Where are you located
+            location_id (str | None): Location ID. If set, API query will use it. Check https://dev.qweather.com/en/docs/resource/glossary/#locationid
+            lang (str): Language of the response (en/zh) . Default to Chinese
+            unit (str): Unit of the response (m/k) . Default to metric
+            i_am_mr_beast (bool): You are Mr. Beast. If you are rich then use paid api. Default to False
+        """
+        self.__api_key = api_key
+        self.__unit = unit
+        self.__lang = lang
+        self.max_hourly_callback_amount = max_hourly_callback_amount
+        self.location = location
+        self.hourly_api_callback = None
+        self.minutely_api_callback = None
+        self.current_api_callback = None
+        self.indices_api_callback = None
+
+        if location_id is not None:
+            self.__location = location_id
+        else:
+            self.__location = f'{self.location.longitude},{self.location.latitude}'
+
+        if i_am_mr_beast:
+            self.__api_host = 'https://api.qweather.com'
+        else:
+            self.__api_host = 'https://devapi.qweather.com'
+
+    def __construct_hourly_api_url(self):
+        return f'{self.__api_host}/v7/weather/24h?' \
+               f'key={self.__api_key}&' \
+               f'location={self.__location}&' \
+               f'lang={self.__lang.value}&' \
+               f'unit={self.__unit.value}'
+
+    def __construct_minutely_api_url(self):
+        return f'{self.__api_host}/v7/minutely/5m?' \
+               f'key={self.__api_key}&' \
+               f'location={self.__location}&' \
+               f'lang={self.__lang.value}'
+
+    def __construct_current_api_url(self):
+        return f'{self.__api_host}/v7/weather/now?' \
+               f'key={self.__api_key}&' \
+               f'location={self.__location}&' \
+               f'lang={self.__lang.value}&' \
+               f'unit={self.__unit.value}'
+
+    def __construct_indice_api_url(self):
+        return f'{self.__api_host}/v7/indices/1d?' \
+               f'key={self.__api_key}&' \
+               f'location={self.__location}&' \
+               f'lang={self.__lang.value}&' \
+               f'type=0'
+
+    def invalidate(self):
+        # Get hourly weather
+        response = requests.get(self.__construct_hourly_api_url())
+        if not response.ok:
+            raise IOError('HeFeng API malfunctioned')
+        self.hourly_api_callback = json.loads(response.text)
+        if self.hourly_api_callback['code'] != '200':
+            raise IOError('HeFeng API returned ' + self.hourly_api_callback['code'])
+
+        # Get current weather
+        response = requests.get(self.__construct_current_api_url())
+        if not response.ok:
+            raise IOError('HeFeng API malfunctioned')
+        self.current_api_callback = json.loads(response.text)
+        if self.current_api_callback['code'] != '200':
+            raise IOError('HeFeng API returned ' + self.hourly_api_callback['code'])
+
+            # Get minutely weather
+        response = requests.get(self.__construct_minutely_api_url())
+        if not response.ok:
+            raise IOError('HeFeng API malfunctioned')
+        self.minutely_api_callback = json.loads(response.text)
+        if self.minutely_api_callback['code'] != '200':
+            raise IOError('HeFeng API returned ' + self.minutely_api_callback['code'])
+
+        # Get indices
+        response = requests.get(self.__construct_indice_api_url())
+        if not response.ok:
+            raise IOError('HeFeng API malfunctioned')
+        self.indices_api_callback = json.loads(response.text)
+        if self.indices_api_callback['code'] != '200':
+            raise IOError('HeFeng API returned ' + self.indices_api_callback['code'])
+
+
+class HeFengWeatherProvider(CachedWeatherProvider):
+    """
+    An implementation of HeFeng Weather API.
+    """
+
+    def __init__(self, hefeng_api_provider: HeFengAPIProvider,
+                 use_hefeng_day: bool = True):
+        """Creates a HeFeng Weather provider
+
+        Args:
+            hefeng_api_provider (HeFengAPIProvider): Hefeng API Provider
+            use_hefeng_day (bool): Output HeFeng specific day format, which can be directly used
+        in hefeng icon. Defaults to True
+        """
+        self.__use_hefeng_day = use_hefeng_day
+        self.__api_provider = hefeng_api_provider
+        super().__init__(self.__api_provider.location, TemperatureUnit.CELSIUS)
+
+    @staticmethod
+    def __get_day(code: str) -> Day:
+        if code == "100":
+            return Day.CLEAR
+        elif code == "101":
+            return Day.CLOUDY
+        elif code == "305":
+            return Day.LIGHTLY_RAINY
+        elif code == "307":
+            return Day.RAINY
+        elif code == "405":
+            return Day.SNOWY_RAINY
+        elif code == "400":
+            return Day.LIGHTLY_SNOWY
+        elif code == "401":
+            return Day.SNOWY
+        elif code == "402":
+            return Day.HEAVILY_SNOWY
+        elif code == "502":
+            return Day.HAZY
+        elif code == "501":
+            return Day.FOGGY
+        elif code == "504":
+            return Day.DUSTY
+        elif code == "503":
+            return Day.SANDY
+        elif code == "2105":
+            return Day.WINDY
+        else:
+            return Day.UNKNOWN
+
+    def invalidate(self) -> List[Weather]:
+        self.__api_provider.invalidate()
+        api_callback = self.__api_provider.hourly_api_callback
+        current_api_callback = self.__api_provider.current_api_callback
+        indices_api_callback = self.__api_provider.indices_api_callback
+        result = api_callback['hourly']
+        current_result = current_api_callback['now']
+
+        # Get UV Index from indices API
+        uv_index = -1
+        for something in indices_api_callback['daily']:
+            if something['type'] == '5':
+                uv_index = int(something['level'])
+                break
+
+        # Parses one weather
+        def parse(source: Dict, effect: WeatherEffectiveness) -> Weather:
+            if "fxTime" in source:
+                time = datetime.datetime.fromisoformat(source['fxTime']).timetuple()
+            elif "obsTime" in source:
+                time = datetime.datetime.fromisoformat(source['obsTime']).timetuple()
+            else:
+                raise ValueError('Where is the time?')
+            temperature = float(source['temp'])
+            humidity = float(source['humidity'])
+            pressure = float(source['pressure'])
+            day_code = source['icon']
+            return Weather(
+                time=time,
+                effect=effect,
+                temperature=temperature,
+                pressure=pressure,
+                day=HeFengDayProvider(day_code) if self.__use_hefeng_day
+                else CommonDayProvider(self.__get_day(day_code)),
+                uv_index=uv_index,
+            )
+
+        # Parse current weather using minutely weather
+        weathers = [parse(current_result, WeatherEffectiveness.CURRENT)]
+
+        for i in range(len(result)):
+            if len(weathers) - 1 >= self.__api_provider.max_hourly_callback_amount:
+                break
+            weathers.append(parse(result[i], WeatherEffectiveness.HOURLY))
+
+        return weathers
 
 
 def get_unit_name(unit: TemperatureUnit):
@@ -386,10 +580,8 @@ def get_unit_name(unit: TemperatureUnit):
 class LargeWeatherView(HGroup):
     def __init__(self, context: Context, provider: WeatherProvider,
                  effect: WeatherEffectiveness = WeatherEffectiveness.CURRENT,
-                 prefer: ViewMeasurement = ViewMeasurement.default(),
-                 day_provider: DayProvider = HeFengDayProvider()):
+                 prefer: ViewMeasurement = ViewMeasurement.default()):
         super().__init__(context, alignment=ViewAlignmentVertical.CENTER, prefer=prefer)
-        self.__day_provider = day_provider
         self.__provider = provider
         self.__effect = effect
         self.__icon_view = None
@@ -423,13 +615,13 @@ class LargeWeatherView(HGroup):
         title_group = VGroup(
             self.context, alignment=ViewAlignmentHorizontal.RIGHT)
         self.__icon_view = ImageView(self.context,
-                                     image=self.__day_provider.get_icon(weather.day),
+                                     image=weather.day.get_icon(),
                                      prefer=ViewMeasurement.default(
                                          width=100,
                                          height=100
                                      ))
         self.__day_label_view = TextView(self.context,
-                                         text=self.__day_provider.get_name(weather.day),
+                                         text=weather.day.get_name(),
                                          font=TextView.default_font_bold,
                                          font_size=36)
         self.__subtitle_label_view = TextView(self.context,
@@ -461,8 +653,8 @@ class LargeWeatherView(HGroup):
         if self.__icon_view is None:
             self.__add_views(weather)
         else:
-            self.__icon_view.set_image(weather.day.icon_image)
-            self.__day_label_view.set_text(weather.day.icon_name)
+            self.__icon_view.set_image(weather.day.get_icon())
+            self.__day_label_view.set_text(weather.day.get_name())
             self.__subtitle_label_view.set_text(
                 self.__get_detailed_label(weather))
 
@@ -472,9 +664,7 @@ class LargeWeatherView(HGroup):
 class MiniWeatherView(VGroup):
     def __init__(self, context: Context, provider: WeatherProvider,
                  effect: WeatherEffectiveness = WeatherEffectiveness.CURRENT,
-                 prefer: ViewMeasurement = ViewMeasurement.default(),
-                 day_provider: DayProvider = HeFengDayProvider()):
-        self.__day_provider = day_provider
+                 prefer: ViewMeasurement = ViewMeasurement.default()):
         self.__provider = provider
         self.__effect = effect
         self.__icon_view = None
@@ -499,13 +689,13 @@ class MiniWeatherView(VGroup):
             self.refresh()
 
     def __get_label(self, weather: Weather) -> str:
-        return f'{self.__day_provider.get_name(weather.day)}\n' \
+        return f'{weather.day.get_name()}\n' \
                f'{weather.temperature} {get_unit_name(self.__provider.get_temperature_unit())}'
 
     def __add_views(self, weather: Weather):
         self.__icon_view = ImageView(
             self.context,
-            image=self.__day_provider.get_icon(weather.day),
+            image=weather.day.get_icon(),
             prefer=ViewMeasurement.default(width=32, height=32)
         )
         self.__label = TextView(
@@ -521,8 +711,8 @@ class MiniWeatherView(VGroup):
         if self.__icon_view is None:
             self.__add_views(weather)
         else:
-            self.__icon_view.set_image(weather.day.icon_image)
-            self.__label.set_text(weather.day.icon_name)
+            self.__icon_view.set_image(weather.day.get_icon())
+            self.__label.set_text(weather.day.get_name())
 
 
 class WeatherTrendView(TrendChartsView):
@@ -536,8 +726,7 @@ class WeatherTrendView(TrendChartsView):
                  line_fill: int = 0, line_width: float = 2,
                  prefer: ViewMeasurement = ViewMeasurement.default(),
                  line_type: ChartsLineType = ChartsLineType.BEZIER_CURVE,
-                 charts_configuration: ChartsConfiguration = None,
-                 day_provider: DayProvider = HeFengDayProvider()):
+                 charts_configuration: ChartsConfiguration = None):
         """
         Create a WeatherTrendView
         :param context: where the view lives in
@@ -571,7 +760,7 @@ class WeatherTrendView(TrendChartsView):
         self.__effect = effect
         self.__value = value
         self.refresh()
-        self.__flow = WeatherFlowView(context, provider, effect, day_provider)
+        self.__flow = WeatherFlowView(context, provider, effect)
 
     @staticmethod
     def label(w: Weather) -> int:
@@ -597,9 +786,8 @@ class WeatherTrendView(TrendChartsView):
 
 class WeatherFlowView(View):
     def __init__(self, context: Context, provider: WeatherProvider, effect: WeatherEffectiveness,
-                 prefer: ViewMeasurement = ViewMeasurement.default(), day_provider: DayProvider = HeFengDayProvider()):
+                 prefer: ViewMeasurement = ViewMeasurement.default()):
         super().__init__(context, prefer)
-        self.__day_provider = day_provider
         self.__effect = effect
         self.__provider = provider
 
@@ -646,7 +834,6 @@ class WeatherFlowView(View):
         view = MiniWeatherView(
             fake_context, DirectWeatherProvider(weather),
             effect=WeatherEffectiveness.ANY,
-            day_provider=self.__day_provider
         )
         group.add_views(time, view)
         size = group.content_size()
@@ -666,202 +853,3 @@ class WeatherFlowView(View):
             return
 
         return self.__get_icon_view(w)
-
-class HeFengAPIProvider():
-    """
-    A HeFeng API provider, which provides API access to HeFeng
-    """
-
-    def __init__(self, api_key: str, location: Location, lang: str = 'zh', unit: str = 'm',
-                 max_hourly_callback_amount: int = 24, i_am_mr_beast: bool = False, location_id: str | None = None):
-        """Creates a HeFeng API provider
-
-        Args:
-            api_key (str): Your API key. Obtain it from https://console.qweather.com/
-            location (Location): Where are you located
-            location_id (str | None): Location ID. If set, API query will use it. Check https://dev.qweather.com/en/docs/resource/glossary/#locationid
-            lang (str): Language of the response (en/zh) . Default to Chinese
-            unit (str): Unit of the response (m/k) . Default to metric
-            i_am_mr_beast (bool): You are Mr. Beast. If you are rich then use paid api. Default to False
-        """
-        self.__api_key = api_key
-        self.__unit = unit
-        self.__lang = lang
-        self.max_hourly_callback_amount = max_hourly_callback_amount
-        self.location = location
-        self.hourly_api_callback = None
-        self.minutely_api_callback = None
-        self.current_api_callback = None
-        self.indices_api_callback = None
-        
-        if location_id is not None:
-            self.__location = location_id
-        else:
-            self.__location = f'{self.location.longitude},{self.location.latitude}'
-            
-        
-        if i_am_mr_beast:
-            self.__api_host = 'https://api.qweather.com'
-        else:
-            self.__api_host = 'https://devapi.qweather.com'
-        
-        
-    def __construct_hourly_api_url(self):
-        return f'{self.__api_host}/v7/weather/24h?'\
-               f'key={self.__api_key}&'\
-               f'location={self.__location}&'\
-               f'lang={self.__lang}&'\
-               f'unit={self.__unit}'
-    
-    def __construct_minutely_api_url(self):
-        return f'{self.__api_host}/v7/minutely/5m?'\
-               f'key={self.__api_key}&'\
-               f'location={self.__location}&'\
-               f'lang={self.__lang}'
-    
-    def __construct_current_api_url(self):
-        return f'{self.__api_host}/v7/weather/now?'\
-               f'key={self.__api_key}&'\
-               f'location={self.__location}&'\
-               f'lang={self.__lang}&'\
-               f'unit={self.__unit}'
-               
-    def __construct_indice_api_url(self):
-        return f'{self.__api_host}/v7/indices/1d?'\
-               f'key={self.__api_key}&'\
-               f'location={self.__location}&'\
-               f'lang={self.__lang}&'\
-               f'type=0'
-    
-    def invalidate(self):
-        # Get hourly weather
-        response = requests.get(self.__construct_hourly_api_url())
-        if not response.ok:
-            raise IOError('HeFeng API malfunctioned')
-        self.hourly_api_callback = json.loads(response.text)
-        if self.hourly_api_callback['code'] != '200':
-            raise IOError('HeFeng API returned ' + self.hourly_api_callback['code'])
-
-        # Get current weather
-        response = requests.get(self.__construct_current_api_url())
-        if not response.ok:
-            raise IOError('HeFeng API malfunctioned')
-        self.current_api_callback = json.loads(response.text)
-        if self.current_api_callback['code'] != '200':
-            raise IOError('HeFeng API returned ' + self.hourly_api_callback['code'])        
-
-        # Get minutely weather
-        response = requests.get(self.__construct_minutely_api_url())
-        if not response.ok:
-            raise IOError('HeFeng API malfunctioned')
-        self.minutely_api_callback = json.loads(response.text)
-        if self.minutely_api_callback['code'] != '200':
-            raise IOError('HeFeng API returned ' + self.minutely_api_callback['code'])
-        
-        # Get indices
-        response = requests.get(self.__construct_indice_api_url())
-        if not response.ok:
-            raise IOError('HeFeng API malfunctioned')
-        self.indices_api_callback = json.loads(response.text)
-        if self.indices_api_callback['code'] != '200':
-            raise IOError('HeFeng API returned ' + self.indices_api_callback['code'])
-
-class HeFengWeatherProvider(CachedWeatherProvider):
-    """
-    A implementation of HeFeng Weather API.
-    Args:
-        CachedWeatherProvider (_type_): _description_
-    """
-    def __init__(self, hefeng_api_provider: HeFengAPIProvider,
-                 use_hefeng_day: bool = True):
-        """Creates a HeFeng Weather provider
-
-        Args:
-            hefeng_api_provider (HeFengAPIProvider): Hefeng API Provider
-            use_hefeng_day (bool): Output HeFeng specific day format, which can be directly used
-        in hefeng icon. Default to True
-        """
-        self.__use_hefeng_day = use_hefeng_day
-        self.__api_provider = hefeng_api_provider
-        super().__init__(self.__api_provider.location, TemperatureUnit.CELSIUS)
-    
-    def __get_day(self, code: str) -> Day | HeFengDay:
-        if self.__use_hefeng_day:
-            return HeFengDay(code=code)
-        else:
-            if code == "100":
-                return Day.CLEAR
-            elif code == "101":
-                return Day.CLOUDY
-            elif code == "305":
-                return Day.LIGHTLY_RAINY
-            elif code == "307":
-                return Day.RAINY
-            elif code == "405":
-                return Day.SNOWY_RAINY
-            elif code == "400":
-                return Day.LIGHTLY_SNOWY
-            elif code == "401":
-                return Day.SNOWY
-            elif code == "402":
-                return Day.HEAVILY_SNOWY
-            elif code == "502":
-                return Day.HAZY
-            elif code == "501":
-                return Day.FOGGY
-            elif code == "504":
-                return Day.DUSTY
-            elif code == "503":
-                return Day.SANDY
-            elif code == "2105":
-                return Day.WINDY
-            else:
-                return Day.UNKNOWN
-                
-    
-    def invalidate(self) -> List[Weather]:
-        self.__api_provider.invalidate()
-        api_callback = self.__api_provider.hourly_api_callback
-        current_api_callback = self.__api_provider.current_api_callback
-        indices_api_callback = self.__api_provider.indices_api_callback
-        result = api_callback['hourly']
-        current_result = current_api_callback['now']
-        
-        # Get UV Index from indices API
-        uv_index = -1
-        for something in indices_api_callback['daily']:
-            if something['type'] == '5':
-                uv_index = int(something['level'])
-                break
-        
-        # Parses one weather
-        def parse(source: Dict, effect: WeatherEffectiveness) -> Weather:
-            if "fxTime" in source:
-                time = datetime.datetime.fromisoformat(source['fxTime']).timetuple()
-            elif "obsTime" in source:
-                time = datetime.datetime.fromisoformat(source['obsTime']).timetuple()
-            else:
-                raise ValueError('Where is the time?')
-            temperature = float(source['temp'])
-            humidity = float(source['humidity'])
-            pressure = float(source['pressure'])
-            day_code = source['icon']
-            return Weather(
-                time=time,
-                effect=effect,
-                temperature=temperature,
-                pressure=pressure,
-                day=self.__get_day(day_code),
-                uv_index=uv_index,
-            )
-        
-        # Parse current weather using minutely weather
-        weathers = [parse(current_result, WeatherEffectiveness.CURRENT)]
-        
-        for i in range(len(result)):
-            if len(weathers) - 1 >= self.__api_provider.max_hourly_callback_amount:
-                break
-            weathers.append(parse(result[i], WeatherEffectiveness.HOURLY))
-            
-        return weathers
-            
