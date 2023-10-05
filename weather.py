@@ -491,17 +491,17 @@ class HeFengWeatherProvider(CachedWeatherProvider):
 
     @staticmethod
     def __get_day(code: str) -> Day:
-        if code == "100":
+        if code == "100" or code == "150" or code == "2073":
             return Day.CLEAR
-        elif code == "101":
+        elif code == "101" or code == "151" or code == "152" or code == "153":
             return Day.CLOUDY
-        elif code == "305":
+        elif code == "305" or code == "350":
             return Day.LIGHTLY_RAINY
-        elif code == "307":
+        elif code == "307" or code == "351":
             return Day.RAINY
-        elif code == "405":
+        elif code == "405" or code == "456":
             return Day.SNOWY_RAINY
-        elif code == "400":
+        elif code == "400" or code == "457":
             return Day.LIGHTLY_SNOWY
         elif code == "401":
             return Day.SNOWY
