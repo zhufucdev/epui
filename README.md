@@ -190,6 +190,9 @@ Following are views that have been implemented
 - CalendarView
 > A CalendarView is a vertical list of `CalendarStripeView` to display a series of events
 
+## Credits
+ - [qwd/Icons](https://github.com/qwd/Icons) for weather icons.
+
 ## License
 ```
 The MIT License (MIT)

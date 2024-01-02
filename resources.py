@@ -9,12 +9,12 @@ COLOR_TRANSPARENT = 254
 
 
 def get_file(name: str):
-    for _dir in resources_dir:
-        candidates = (os.path.join(_dir, f) for f in os.listdir(_dir) if f.startswith(name))
-        try:
-            return next(candidates)
-        except:
-            pass
+    for path in resources_dir:
+        for root, _, files in os.walk(path):
+            for file in files:
+                if file.startswith(name):
+                    return os.path.join(root, file)
+    return None
 
 
 def get_image(name: str) -> Image.Image:
