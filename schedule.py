@@ -139,7 +139,9 @@ class GoogleCalendarProvider(CalendarProvider):
     A working implementation of CalendarProvider than involves Google Workspace
     """
 
-    def __init__(self, name: str = None, credentials_file: str = None, calendar_id: str = 'primary', max_results: int = 10,
+    def __init__(self, name: str = None,
+                 credentials_file: str = None, calendar_id: str = 'primary',
+                 max_results: int = 10,
                  callback_addr: str = 'localhost', callback_port: int = 3891, api_key: str = None):
         """
         Creates a GoogleCalendarProvider
@@ -186,7 +188,7 @@ class GoogleCalendarProvider(CalendarProvider):
                 self.__service = gcp.build('calendar', 'v3', credentials=self.__creds)
         else:
             self.__service = gcp.build('calendar', 'v3', developerKey=self.__api_key)
-            
+
     @staticmethod
     def __parse_event(data: Dict[str, Any]) -> Event:
         if 'T' in data['start']['dateTime']:
@@ -475,7 +477,7 @@ class SquareDateView(Group):
                  day_font_size: int = 100,
                  month_font_size: int = 20,
                  current_week_font_size: int = 25,
-                 current_week_offset: int | None = None,
+                 first_week: str | None = None,
                  width: int = 200):
         """
         :param context: The context that the view is in
@@ -485,7 +487,7 @@ class SquareDateView(Group):
         :param day_font_size: The font size of the day
         :param month_font_size: The font size of the month
         :param current_week_font_size: The font size of the current week
-        :param current_week_offset: The offset of the current week. If not set, will not display the current week
+        :param first_week: String representation of any day in the first week this semester. Format: yyyy-mm-dd
         :param width: The width of the view
         """
         super().__init__(context, prefer)
@@ -495,7 +497,11 @@ class SquareDateView(Group):
         self.__weekday_font_size = weekday_font_size
         self.__month_font_size = month_font_size
         self.__current_week_font_size = current_week_font_size
-        self.__current_week_offset = current_week_offset
+        if first_week is not None:
+            self.__first_week = datetime.datetime.strptime(first_week, "%Y-%m-%d")
+            self.__first_week -= datetime.timedelta(self.__first_week.weekday())
+        else:
+            self.__first_week = None
         self.__add_view()
 
     def measure(self):
@@ -567,10 +573,13 @@ class SquareDateView(Group):
         )
 
         self.__header.add_view(month_textview)
-        if self.__current_week_offset is not None:
+        if self.__first_week is not None:
+            def get_week_offset():
+                return f'{(datetime.datetime.now() - self.__first_week).days // 7} '
+
             current_week_textview = TextView(
                 context=self.context,
-                text=lambda: str(int(datetime.datetime.now().strftime('%W')) + self.__current_week_offset) + ' ',
+                text=get_week_offset,
                 font=self.__font,
                 font_size=self.__current_week_font_size,
                 fill=255,
