@@ -59,13 +59,14 @@ class DayProvider:
 class CommonDayProvider(DayProvider):
     """A DayProvider compatible with the common weather icon library"""
 
-    def __init__(self, day: Day):
+    def __init__(self, context: Context, day: Day):
         super().__init__()
         self.day = day
+        self.context = context
 
     def get_icon(self) -> Image.Image:
         if self.day == Day.CLEAR:
-            return resources.get_image_tint('weather-sunny', 100)
+            return resources.get_image_tint('weather-sunny', self.context.acc_color)
         elif self.day == Day.CLOUDY:
             return resources.get_image('weather-cloudy')
         elif self.day == Day.RAINY or self.day == Day.LIGHTLY_RAINY:
@@ -130,9 +131,9 @@ class WeatherEffectiveness(Enum):
 
 class Weather:
     def __init__(self,
+                 day: DayProvider,
                  time: pytime.struct_time = pytime.localtime(),
                  effect: WeatherEffectiveness = WeatherEffectiveness.CURRENT,
-                 day: DayProvider = CommonDayProvider(Day.CLEAR),
                  temperature: float = 22,
                  humidity: float = 0.2,
                  pressure: float = 10,
@@ -261,13 +262,16 @@ class CaiYunWeatherProvider(CachedWeatherProvider):
     that offers free API access to personal developers
     """
 
-    def __init__(self, caiyun_api_provider: CaiYunAPIProvider, cache_invalidate_interval: float = 3600):
+    def __init__(self, context: Context, caiyun_api_provider: CaiYunAPIProvider,
+                 cache_invalidate_interval: float = 3600):
         """
         Create a CaiYun Weather provider
+        :param context: the context
         :param caiyun_api_provider: the CaiYun API provider. See `CaiYunAPIProvider`
         :param cache_invalidate_interval: lifespan of the cache. See `CachedWeatherProvider`
         """
         self.__api_provider = caiyun_api_provider
+        self.context = context
         super().__init__(self.__api_provider.location, TemperatureUnit.CELSIUS, cache_invalidate_interval)
 
     @staticmethod
@@ -317,7 +321,7 @@ class CaiYunWeatherProvider(CachedWeatherProvider):
             time=pytime.localtime(),
             effect=WeatherEffectiveness.CURRENT,
             temperature=result_realtime['temperature'],
-            day=CommonDayProvider(self.__caiyun_get_day(result_realtime['skycon'])),
+            day=CommonDayProvider(self.context, self.__caiyun_get_day(result_realtime['skycon'])),
             humidity=result_realtime['humidity'],
             pressure=result_realtime['pressure'] / 100,
             uv_index=int(result_realtime['life_index']['ultraviolet']['index'])
@@ -351,8 +355,8 @@ class CaiYunWeatherProvider(CachedWeatherProvider):
                 pressure = pick(source['pressure'][i])
                 target_set.append(
                     Weather(
-                        time, effect, CommonDayProvider(self.__caiyun_get_day(sky_con)),
-                        temperature, humidity, pressure, -1
+                        CommonDayProvider(self.context, self.__caiyun_get_day(sky_con)),
+                        time, effect, temperature, humidity, pressure, -1
                     )
                 )
 
@@ -476,17 +480,20 @@ class HeFengWeatherProvider(CachedWeatherProvider):
     An implementation of HeFeng Weather API.
     """
 
-    def __init__(self, hefeng_api_provider: HeFengAPIProvider,
+    def __init__(self, context: Context,
+                 hefeng_api_provider: HeFengAPIProvider,
                  use_hefeng_day: bool = True):
         """Creates a HeFeng Weather provider
 
         Args:
+            context: the context
             hefeng_api_provider (HeFengAPIProvider): Hefeng API Provider
             use_hefeng_day (bool): Output HeFeng specific day format, which can be directly used
         in hefeng icon. Defaults to True
         """
         self.__use_hefeng_day = use_hefeng_day
         self.__api_provider = hefeng_api_provider
+        self.context = context
         super().__init__(self.__api_provider.location, TemperatureUnit.CELSIUS)
 
     @staticmethod
@@ -553,7 +560,7 @@ class HeFengWeatherProvider(CachedWeatherProvider):
                 temperature=temperature,
                 pressure=pressure,
                 day=HeFengDayProvider(day_code) if self.__use_hefeng_day
-                else CommonDayProvider(self.__get_day(day_code)),
+                else CommonDayProvider(self.context, self.__get_day(day_code)),
                 uv_index=uv_index,
             )
 
@@ -638,7 +645,7 @@ class LargeWeatherView(HGroup):
                         margin_right=4,
                         margin_left=4,
                     ),
-                    fill=0),
+                    fill=self.context.fg_color),
             title_group
         )
         title_group.add_views(

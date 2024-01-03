@@ -268,7 +268,7 @@ class CalenderStripeView(Group):
                                              text=self.__get_event_name(),
                                              font_size=font_size,
                                              font=font,
-                                             fill=255,
+                                             fill=self.context.bg_color,
                                              prefer=ViewMeasurement.default(
                                                  margin_top=5,
                                                  margin_bottom=2,  # idk why, but it just aligned
@@ -279,7 +279,7 @@ class CalenderStripeView(Group):
                                              text=self.__get_event_time(),
                                              font_size=font_size,
                                              font=font,
-                                             fill=255,
+                                             fill=self.context.bg_color,
                                              align_horizontal=ViewAlignmentHorizontal.RIGHT,
                                              prefer=ViewMeasurement.default(
                                                  margin_top=2,
@@ -291,7 +291,7 @@ class CalenderStripeView(Group):
             self.add_views(
                 Surface(context,
                         radius=radius,
-                        fill=1,
+                        fill=self.context.acc_color,
                         prefer=ViewMeasurement.default(size=ViewSize.MATCH_PARENT)),
                 self.__name_text_view,
                 self.__span_text_view)
@@ -300,7 +300,7 @@ class CalenderStripeView(Group):
                                         text=self.__get_text(),
                                         font_size=font_size,
                                         font=font,
-                                        fill=255,
+                                        fill=self.context.bg_color,
                                         prefer=ViewMeasurement.default(
                                             margin_top=5,
                                             margin_bottom=2,  # idk why, but it just aligned
@@ -310,7 +310,7 @@ class CalenderStripeView(Group):
             self.add_views(
                 Surface(context,
                         radius=radius,
-                        fill=1,
+                        fill=self.context.acc_color,
                         prefer=ViewMeasurement.default(size=ViewSize.MATCH_PARENT)),
                 self.__text_view
             )
@@ -538,7 +538,7 @@ class SquareDateView(Group):
     def __add_view(self):
         self.__base_surface = Surface(
             context=self.context,
-            fill=100
+            fill=self.context.acc_color
         )
 
         self.__date_textview = TextView(
@@ -546,7 +546,7 @@ class SquareDateView(Group):
             text=lambda: datetime.datetime.now().strftime('%d'),
             font=self.__font,
             font_size=self.__day_font_size,
-            fill=255,
+            fill=self.context.bg_color,
             align_horizontal=ViewAlignmentHorizontal.CENTER,
             align_vertical=ViewAlignmentVertical.CENTER,
         )
@@ -556,7 +556,7 @@ class SquareDateView(Group):
             text=lambda: datetime.datetime.now().strftime('%a'),
             font=self.__font,
             font_size=self.__weekday_font_size,
-            fill=255,
+            fill=self.context.bg_color,
             align_horizontal=ViewAlignmentHorizontal.CENTER,
         )
 
@@ -566,7 +566,7 @@ class SquareDateView(Group):
             text=lambda: datetime.datetime.now().strftime('%b'),
             font=self.__font,
             font_size=self.__month_font_size,
-            fill=255,
+            fill=self.context.bg_color,
             align_horizontal=ViewAlignmentHorizontal.CENTER,
             align_vertical=ViewAlignmentVertical.TOP,
             prefer=ViewMeasurement.default(width=ViewSize.MATCH_PARENT)
@@ -582,7 +582,7 @@ class SquareDateView(Group):
                 text=get_week_offset,
                 font=self.__font,
                 font_size=self.__current_week_font_size,
-                fill=255,
+                fill=self.context.bg_color,
                 align_horizontal=ViewAlignmentHorizontal.RIGHT,
                 align_vertical=ViewAlignmentVertical.TOP,
                 prefer=ViewMeasurement.default(width=ViewSize.MATCH_PARENT)

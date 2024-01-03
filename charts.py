@@ -452,7 +452,7 @@ class TrendChartsView(ChartsView):
         canvas.text(
             xy=(int((bounds[0] - title_bounds[2]) / 2), bounds[1] - title_bounds[3] - int(3 * scale)),
             font=font,
-            fill=0,
+            fill=self.context.fg_color,
             text=self.get_configuration().title,
         )
         if View.draw_bounds_box:

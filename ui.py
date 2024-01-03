@@ -26,7 +26,8 @@ class Context:
     A Context is shared between all its subviews to provide drawing functionality
     """
 
-    def __init__(self, canvas: ImageDraw.ImageDraw, size: Tuple[float, float], scale: float = 1) -> None:
+    def __init__(self, canvas: ImageDraw.ImageDraw, size: Tuple[float, float], scale: float = 1,
+                 background_color: int = 255, foreground_color: int = 0, accent_color: int = 1) -> None:
         self.__status = EventLoopStatus.NOT_LOADED
         self.root_group = Group(self)
         self.root_group.actual_measurement = ViewMeasurement((0, 0), size, (0, 0, 0, 0))
@@ -36,6 +37,9 @@ class Context:
         self.scale = scale
         self.__redraw_listener = None
         self.__panic_handler = None
+        self.bg_color = background_color
+        self.fg_color = foreground_color
+        self.acc_color = accent_color
 
         self.__event_loop = Thread(target=self.__start_event_loop)
 
@@ -66,7 +70,7 @@ class Context:
 
     def redraw_once(self):
         self.__main_canvas.rectangle(
-            [0, 0, self.canvas_size[0], self.canvas_size[1]], fill=255)  # clear canvas
+            [0, 0, self.canvas_size[0], self.canvas_size[1]], fill=self.bg_color)  # clear canvas
         self.root_group.draw(self.__main_canvas, self.scale)
 
     def on_redraw(self, listener):
