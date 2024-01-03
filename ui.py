@@ -93,6 +93,10 @@ class Context:
         self.__status = EventLoopStatus.STOPPED
         self.__event_loop.join()
 
+    @property
+    def status(self) -> EventLoopStatus:
+        return self.__status
+
 
 class ViewSize(Enum):
     MATCH_PARENT = 1
