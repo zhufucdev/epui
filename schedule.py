@@ -291,7 +291,7 @@ class CalenderStripeView(Group):
             self.add_views(
                 Surface(context,
                         radius=radius,
-                        fill=self.context.acc_color,
+                        fill=self.context.fg_color,
                         prefer=ViewMeasurement.default(size=ViewSize.MATCH_PARENT)),
                 self.__name_text_view,
                 self.__span_text_view)
@@ -310,7 +310,7 @@ class CalenderStripeView(Group):
             self.add_views(
                 Surface(context,
                         radius=radius,
-                        fill=self.context.acc_color,
+                        fill=self.context.fg_color,
                         prefer=ViewMeasurement.default(size=ViewSize.MATCH_PARENT)),
                 self.__text_view
             )
