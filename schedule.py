@@ -191,7 +191,7 @@ class GoogleCalendarProvider(CalendarProvider):
 
     @staticmethod
     def __parse_event(data: Dict[str, Any]) -> Event:
-        if 'T' in data['start']['dateTime']:
+        if 'dateTime' in data['start'] and 'T' in data['start']['dateTime']:
             full_format = '%Y-%m-%dT%H:%M:%S%z'
             start, end = pytime.strptime(data['start']['dateTime'], full_format), \
                 pytime.strptime(data['end']['dateTime'], full_format)
