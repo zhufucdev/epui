@@ -41,7 +41,7 @@ class FullDayTimeSpan(EventTimeSpan):
 
     def __eq__(self, other):
         return type(other) == FullDayTimeSpan and other.get_span() == self.__span \
-            and other.get_date() == self.__date
+            and other.start_date() == self.__date
 
 
 class TwoStepTimeSpan(EventTimeSpan):
