@@ -1,5 +1,6 @@
 import datetime
 import logging
+import math
 import time as pytime
 from enum import Enum
 from typing import *
@@ -575,7 +576,7 @@ class SquareDateView(Group):
         self.__header.add_view(month_textview)
         if self.__first_week is not None:
             def get_week_offset():
-                return f'{(datetime.datetime.now() - self.__first_week).days // 7} '
+                return f'{math.floor((datetime.datetime.now() - self.__first_week).days / 7) + 1} '
 
             current_week_textview = TextView(
                 context=self.context,
